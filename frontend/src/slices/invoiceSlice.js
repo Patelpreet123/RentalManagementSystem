@@ -11,12 +11,30 @@ const initialState = {
   message: '',
 };
 
+// Helper function to get token with localStorage fallback
+const getToken = (thunkAPI) => {
+  let token = thunkAPI.getState().auth.token;
+  // Fallback to localStorage if token not in Redux state (e.g., after refresh)
+  if (!token) {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        token = JSON.parse(userData).token;
+      } catch (e) {
+        console.error('Error parsing user data from localStorage');
+      }
+    }
+  }
+  return token;
+};
+
 // Create invoice
 export const createInvoice = createAsyncThunk(
   'invoices/create',
   async (invoiceData, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await invoiceService.createInvoice(invoiceData, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -30,7 +48,8 @@ export const getInvoice = createAsyncThunk(
   'invoices/getOne',
   async (invoiceId, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await invoiceService.getInvoice(invoiceId, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -44,7 +63,8 @@ export const getMyInvoices = createAsyncThunk(
   'invoices/getMyInvoices',
   async (params, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await invoiceService.getMyInvoices(params, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -58,7 +78,8 @@ export const getVendorInvoices = createAsyncThunk(
   'invoices/getVendorInvoices',
   async (params, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await invoiceService.getVendorInvoices(params, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -72,7 +93,8 @@ export const updateInvoiceStatus = createAsyncThunk(
   'invoices/updateStatus',
   async ({ invoiceId, status }, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await invoiceService.updateInvoiceStatus(invoiceId, status, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -86,7 +108,8 @@ export const getAllInvoices = createAsyncThunk(
   'invoices/getAll',
   async (params, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await invoiceService.getAllInvoices(params, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;

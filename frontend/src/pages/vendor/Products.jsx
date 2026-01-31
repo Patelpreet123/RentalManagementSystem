@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { getVendorProducts, deleteProduct, selectAllProducts, deleteProductLocal } from '../../slices/productSlice';
+import { getVendorProducts, deleteProduct, selectVendorProducts } from '../../slices/productSlice';
 import { FiPlus, FiEdit2, FiTrash2, FiEye, FiPackage, FiRefreshCw, FiSearch, FiGrid, FiList } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 
@@ -52,26 +52,48 @@ const StatusBadge = ({ isActive }) => {
 
 const VendorProducts = () => {
   const dispatch = useDispatch();
-  // Use local products from Redux state
-  const products = useSelector(selectAllProducts);
+  // Use products from API
+  const products = useSelector(selectVendorProducts);
   const { isLoading } = useSelector((state) => state.products);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState('grid');
 
+  // Fetch products on mount
+  useEffect(() => {
+    dispatch(getVendorProducts());
+  }, [dispatch]);
+
   const handleDelete = (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
-      dispatch(deleteProductLocal(productId));
-      toast.success('Product deleted successfully');
+      dispatch(deleteProduct(productId))
+        .unwrap()
+        .then(() => {
+          toast.success('Product deleted successfully');
+        })
+        .catch((error) => {
+          toast.error(error || 'Failed to delete product');
+        });
     }
   };
 
+  const handleRefresh = () => {
+    dispatch(getVendorProducts());
+  };
+
+  // Helper to check if product is active (handles both API and local formats)
+  const isProductActive = (product) => product.isActive ?? product.availability ?? true;
+  
+  // Helper to get total quantity (handles both API and local formats)
+  const getQuantity = (product) => product.inventory?.totalQuantity ?? product.totalQuantity ?? 0;
+
   // Filter products based on search and status
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase());
+  const filteredProducts = (products || []).filter(product => {
+    const matchesSearch = product.name?.toLowerCase().includes(search.toLowerCase());
+    const active = isProductActive(product);
     const matchesStatus = !statusFilter || 
-      (statusFilter === 'active' && product.availability) ||
-      (statusFilter === 'inactive' && !product.availability);
+      (statusFilter === 'active' && active) ||
+      (statusFilter === 'inactive' && !active);
     return matchesSearch && matchesStatus;
   });
 
@@ -86,10 +108,10 @@ const VendorProducts = () => {
 
   // Calculate stats
   const stats = {
-    total: products.length,
-    active: products.filter(p => p.availability).length,
-    inactive: products.filter(p => !p.availability).length,
-    outOfStock: products.filter(p => p.totalQuantity === 0).length,
+    total: (products || []).length,
+    active: (products || []).filter(p => isProductActive(p)).length,
+    inactive: (products || []).filter(p => !isProductActive(p)).length,
+    outOfStock: (products || []).filter(p => getQuantity(p) === 0).length,
   };
 
   return (
@@ -196,7 +218,7 @@ const VendorProducts = () => {
                       </div>
                     )}
                     <div className="absolute top-3 right-3">
-                      <StatusBadge isActive={product.availability} />
+                      <StatusBadge isActive={isProductActive(product)} />
                     </div>
                   </div>
                   
@@ -206,8 +228,8 @@ const VendorProducts = () => {
 
                     <div className="flex items-center justify-between text-sm pt-2">
                       <span className="text-gray-500">
-                        <span className={`font-medium ${product.totalQuantity === 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                          {product.totalQuantity}
+                        <span className={`font-medium ${getQuantity(product) === 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                          {getQuantity(product)}
                         </span>
                         &nbsp;available
                       </span>
@@ -255,12 +277,12 @@ const VendorProducts = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-                        <StatusBadge isActive={product.availability} />
+                        <StatusBadge isActive={isProductActive(product)} />
                       </div>
                       <p className="text-sm text-gray-500 line-clamp-1 mb-2">{product.description}</p>
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-gray-500">
-                          <span className="font-medium text-gray-900">{product.totalQuantity}</span> available
+                          <span className="font-medium text-gray-900">{getQuantity(product)}</span> available
                         </span>
                         <span className="font-semibold text-gray-900">{formatCurrency(product.pricing?.daily)}/day</span>
                       </div>

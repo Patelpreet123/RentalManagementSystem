@@ -1,6 +1,34 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const companyMembershipSchema = new mongoose.Schema({
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
+  },
+  role: {
+    type: String,
+    enum: ['owner', 'admin', 'vendor', 'staff'],
+    default: 'vendor'
+  },
+  permissions: [{
+    type: String
+  }],
+  isDefault: {
+    type: Boolean,
+    default: false
+  },
+  joinedAt: {
+    type: Date,
+    default: Date.now
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  }
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -22,7 +50,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'vendor', 'customer'],
+    enum: ['superadmin', 'admin', 'vendor', 'customer'],
     default: 'customer'
   },
   phone: {
@@ -39,6 +67,13 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  // Multi-tenant support: user can belong to multiple companies
+  companyMemberships: [companyMembershipSchema],
+  // Currently active company (for session context)
+  activeCompany: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company'
   },
   vendorInfo: {
     businessName: String,
@@ -62,6 +97,26 @@ userSchema.pre('save', async function(next) {
 // Compare password method
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Get user's companies
+userSchema.methods.getCompanies = function() {
+  return this.companyMemberships.filter(m => m.isActive).map(m => m.company);
+};
+
+// Check if user belongs to a company
+userSchema.methods.belongsToCompany = function(companyId) {
+  return this.companyMemberships.some(
+    m => m.company.toString() === companyId.toString() && m.isActive
+  );
+};
+
+// Get user's role in a specific company
+userSchema.methods.getRoleInCompany = function(companyId) {
+  const membership = this.companyMemberships.find(
+    m => m.company.toString() === companyId.toString() && m.isActive
+  );
+  return membership ? membership.role : null;
 };
 
 module.exports = mongoose.model('User', userSchema);

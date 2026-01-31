@@ -34,6 +34,13 @@ exports.protect = async (req, res, next) => {
         });
       }
 
+      // Attach companyId from token if present
+      if (decoded.companyId) {
+        req.companyId = decoded.companyId;
+      } else if (req.user.activeCompany) {
+        req.companyId = req.user.activeCompany;
+      }
+
       next();
     } catch (err) {
       return res.status(401).json({

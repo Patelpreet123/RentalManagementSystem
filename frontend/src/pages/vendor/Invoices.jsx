@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { getMyInvoices } from '../../slices/invoiceSlice';
+import { getVendorInvoices } from '../../slices/invoiceSlice';
 import { toast } from 'react-toastify';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -9,20 +8,13 @@ import {
   FiFileText,
   FiDownload,
   FiSearch,
-  FiCalendar,
   FiCheckCircle,
   FiClock,
   FiAlertCircle,
   FiEye,
   FiPrinter,
-  FiMail,
   FiMoreVertical,
-  FiDollarSign,
 } from 'react-icons/fi';
-
-// ============================================================================
-// ENTERPRISE INVOICES PAGE - Clean SaaS Design
-// ============================================================================
 
 // Status Configuration
 const statusConfig = {
@@ -46,6 +38,11 @@ const statusConfig = {
     color: 'bg-gray-100 text-gray-600 border-gray-200',
     icon: FiFileText,
   },
+  sent: {
+    label: 'Sent',
+    color: 'bg-blue-50 text-blue-700 border-blue-200',
+    icon: FiFileText,
+  },
   cancelled: {
     label: 'Cancelled',
     color: 'bg-gray-100 text-gray-500 border-gray-200',
@@ -53,127 +50,11 @@ const statusConfig = {
   },
 };
 
-// Dummy Invoices Data
-const dummyInvoices = [
-  {
-    _id: 'INV001',
-    invoiceNumber: 'INV-2026-001',
-    status: 'paid',
-    createdAt: '2026-01-28T10:30:00Z',
-    dueDate: '2026-02-07T10:30:00Z',
-    paidAt: '2026-01-29T14:20:00Z',
-    order: {
-      _id: 'ORD001',
-      orderNumber: 'ORD-2026-001',
-    },
-    items: [
-      { name: 'Sony A7 IV Camera - 7 days', quantity: 1, price: 17500 },
-      { name: 'Canon RF 70-200mm Lens - 7 days', quantity: 1, price: 12600 },
-    ],
-    subtotal: 30100,
-    tax: 5418,
-    total: 35518,
-    paymentMethod: 'Credit Card (****4242)',
-  },
-  {
-    _id: 'INV002',
-    invoiceNumber: 'INV-2026-002',
-    status: 'pending',
-    createdAt: '2026-01-30T14:00:00Z',
-    dueDate: '2026-02-09T14:00:00Z',
-    order: {
-      _id: 'ORD002',
-      orderNumber: 'ORD-2026-002',
-    },
-    items: [
-      { name: 'MacBook Pro 16" - 2 days', quantity: 1, price: 7000 },
-    ],
-    subtotal: 7000,
-    tax: 1260,
-    total: 8260,
-    paymentMethod: null,
-  },
-  {
-    _id: 'INV003',
-    invoiceNumber: 'INV-2026-003',
-    status: 'paid',
-    createdAt: '2026-01-15T09:00:00Z',
-    dueDate: '2026-01-25T09:00:00Z',
-    paidAt: '2026-01-16T11:45:00Z',
-    order: {
-      _id: 'ORD003',
-      orderNumber: 'ORD-2026-003',
-    },
-    items: [
-      { name: 'DJI Mavic 3 Pro - 7 days', quantity: 1, price: 31500 },
-    ],
-    subtotal: 31500,
-    tax: 5670,
-    total: 37170,
-    paymentMethod: 'UPI (john@upi)',
-  },
-  {
-    _id: 'INV004',
-    invoiceNumber: 'INV-2026-004',
-    status: 'pending',
-    createdAt: '2026-01-29T16:30:00Z',
-    dueDate: '2026-02-08T16:30:00Z',
-    order: {
-      _id: 'ORD004',
-      orderNumber: 'ORD-2026-004',
-    },
-    items: [
-      { name: 'JBL PartyBox 710 - 7 days', quantity: 2, price: 28000 },
-    ],
-    subtotal: 28000,
-    tax: 5040,
-    total: 33040,
-    paymentMethod: null,
-  },
-  {
-    _id: 'INV005',
-    invoiceNumber: 'INV-2026-005',
-    status: 'overdue',
-    createdAt: '2026-01-10T11:00:00Z',
-    dueDate: '2026-01-20T11:00:00Z',
-    order: {
-      _id: 'ORD006',
-      orderNumber: 'ORD-2026-006',
-    },
-    items: [
-      { name: 'Projector Epson Pro - 3 days', quantity: 1, price: 6600 },
-    ],
-    subtotal: 6600,
-    tax: 1188,
-    total: 7788,
-    paymentMethod: null,
-  },
-  {
-    _id: 'INV006',
-    invoiceNumber: 'INV-2026-006',
-    status: 'paid',
-    createdAt: '2026-01-05T08:00:00Z',
-    dueDate: '2026-01-15T08:00:00Z',
-    paidAt: '2026-01-06T09:30:00Z',
-    order: {
-      _id: 'ORD007',
-      orderNumber: 'ORD-2026-007',
-    },
-    items: [
-      { name: 'Herman Miller Aeron Chair - 30 days', quantity: 1, price: 18000 },
-    ],
-    subtotal: 18000,
-    tax: 3240,
-    total: 21240,
-    paymentMethod: 'Net Banking (HDFC)',
-  },
-];
-
 // Skeleton Components
 const InvoiceRowSkeleton = () => (
   <tr className="border-b border-gray-100">
     <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-24" /></td>
-    <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-20" /></td>
+    <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-32" /></td>
     <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-24" /></td>
     <td className="px-4 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-24" /></td>
     <td className="px-4 py-4"><div className="h-6 bg-gray-100 rounded animate-pulse w-16" /></td>
@@ -189,11 +70,12 @@ const formatCurrency = (amount) => {
     currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(amount || 0);
 };
 
 // Format date
 const formatDate = (dateString) => {
+  if (!dateString) return '-';
   return new Date(dateString).toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'short',
@@ -216,8 +98,8 @@ const StatusBadge = ({ status }) => {
 // Tab definitions
 const tabs = [
   { id: 'all', label: 'All Invoices' },
-  { id: 'pending', label: 'Pending' },
   { id: 'paid', label: 'Paid' },
+  { id: 'pending', label: 'Pending' },
   { id: 'overdue', label: 'Overdue' },
 ];
 
@@ -259,22 +141,6 @@ const ActionDropdown = ({ invoice, onAction }) => {
               <FiPrinter className="w-4 h-4" />
               Print
             </button>
-            <button
-              onClick={() => { onAction('email', invoice); setIsOpen(false); }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              <FiMail className="w-4 h-4" />
-              Send via Email
-            </button>
-            {invoice.status === 'pending' && (
-              <button
-                onClick={() => { onAction('pay', invoice); setIsOpen(false); }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50"
-              >
-                <FiDollarSign className="w-4 h-4" />
-                Pay Now
-              </button>
-            )}
           </div>
         </>
       )}
@@ -283,17 +149,17 @@ const ActionDropdown = ({ invoice, onAction }) => {
 };
 
 // Main Invoices Component
-const Invoices = () => {
+const VendorInvoices = () => {
   const dispatch = useDispatch();
   const { invoices: storeInvoices, isLoading } = useSelector((state) => state.invoices);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    dispatch(getMyInvoices());
+    dispatch(getVendorInvoices());
   }, [dispatch]);
 
-  // Use API data if available, otherwise empty array
+  // Use API data
   const apiInvoices = storeInvoices?.data || storeInvoices || [];
   const invoices = Array.isArray(apiInvoices) ? apiInvoices : [];
 
@@ -308,8 +174,9 @@ const Invoices = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesInvoice = invoice.invoiceNumber?.toLowerCase().includes(query);
-      const matchesOrder = invoice.order?.orderNumber?.toLowerCase().includes(query);
-      if (!matchesInvoice && !matchesOrder) return false;
+      const matchesCustomer = invoice.customer?.name?.toLowerCase().includes(query);
+      const matchesEmail = invoice.customer?.email?.toLowerCase().includes(query);
+      if (!matchesInvoice && !matchesCustomer && !matchesEmail) return false;
     }
 
     return true;
@@ -318,13 +185,15 @@ const Invoices = () => {
   // Calculate stats
   const stats = {
     total: invoices.length,
-    pending: invoices.filter((i) => i.status === 'pending').length,
     paid: invoices.filter((i) => i.status === 'paid').length,
+    pending: invoices.filter((i) => i.status === 'pending').length,
     overdue: invoices.filter((i) => i.status === 'overdue').length,
-    totalAmount: invoices.reduce((sum, i) => sum + (i.amounts?.total || i.total || 0), 0),
+    totalRevenue: invoices
+      .filter((i) => i.status === 'paid')
+      .reduce((sum, i) => sum + (i.amounts?.total || 0), 0),
     pendingAmount: invoices
       .filter((i) => i.status === 'pending' || i.status === 'overdue')
-      .reduce((sum, i) => sum + (i.amounts?.amountDue || i.total || 0), 0),
+      .reduce((sum, i) => sum + (i.amounts?.amountDue || 0), 0),
   };
 
   // Generate and download invoice as PDF
@@ -388,24 +257,24 @@ const Invoices = () => {
     const col1X = margin;
     const col2X = pageWidth / 2 + 10;
     
-    // Left Column - Vendor Details
+    // Left Column - Customer Details
     doc.setFillColor(249, 250, 251);
     doc.roundedRect(col1X, y, 85, 55, 3, 3, 'F');
     
     doc.setTextColor(71, 85, 105);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('Vendor', col1X + 5, y + 12);
+    doc.text('Customer', col1X + 5, y + 12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(invoice.vendor?.name || invoice.vendor?.vendorInfo?.businessName || 'Vendor Name', col1X + 5, y + 22);
+    doc.text(invoice.customer?.name || 'Customer Name', col1X + 5, y + 22);
     
     doc.setTextColor(71, 85, 105);
     doc.setFont('helvetica', 'bold');
-    doc.text('Billing Address', col1X + 5, y + 34);
+    doc.text('Invoice Address', col1X + 5, y + 34);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(invoice.vendor?.email || 'vendor@email.com', col1X + 5, y + 44);
+    doc.text(invoice.customer?.email || 'customer@email.com', col1X + 5, y + 44);
     
     // Right Column - Rental Period & Dates
     doc.setFillColor(249, 250, 251);
@@ -460,9 +329,9 @@ const Invoices = () => {
         `${productName}\n${rentalInfo}`,
         (item.quantity || 1).toString(),
         'Units',
-        `₹ ${(item.unitPrice || item.price || 0).toLocaleString('en-IN')}`,
-        `${(invoice.amounts?.tax || invoice.tax || 0) > 0 ? '18%' : '-'}`,
-        `₹ ${(item.totalPrice || item.price || 0).toLocaleString('en-IN')}`
+        `₹ ${(item.unitPrice || 0).toLocaleString('en-IN')}`,
+        `${(invoice.amounts?.tax || 0) > 0 ? '18%' : '-'}`,
+        `₹ ${(item.totalPrice || 0).toLocaleString('en-IN')}`
       ];
     });
     
@@ -525,14 +394,14 @@ const Invoices = () => {
     doc.setFont('helvetica', 'normal');
     doc.text('Untaxed Amount:', summaryBoxX + 5, summaryY);
     doc.setTextColor(30, 41, 59);
-    doc.text(`₹ ${(invoice.amounts?.subtotal || invoice.subtotal || 0).toLocaleString('en-IN')}`, summaryBoxX + 75, summaryY, { align: 'right' });
+    doc.text(`₹ ${(invoice.amounts?.subtotal || 0).toLocaleString('en-IN')}`, summaryBoxX + 75, summaryY, { align: 'right' });
     
     // Tax
     summaryY += 10;
     doc.setTextColor(71, 85, 105);
     doc.text('Taxes:', summaryBoxX + 5, summaryY);
     doc.setTextColor(30, 41, 59);
-    doc.text(`₹ ${(invoice.amounts?.tax || invoice.tax || 0).toLocaleString('en-IN')}`, summaryBoxX + 75, summaryY, { align: 'right' });
+    doc.text(`₹ ${(invoice.amounts?.tax || 0).toLocaleString('en-IN')}`, summaryBoxX + 75, summaryY, { align: 'right' });
     
     // Divider
     summaryY += 5;
@@ -545,7 +414,7 @@ const Invoices = () => {
     doc.setFontSize(11);
     doc.setTextColor(...primaryColor);
     doc.text('Total:', summaryBoxX + 5, summaryY);
-    doc.text(`₹ ${(invoice.amounts?.total || invoice.total || 0).toLocaleString('en-IN')}`, summaryBoxX + 75, summaryY, { align: 'right' });
+    doc.text(`₹ ${(invoice.amounts?.total || 0).toLocaleString('en-IN')}`, summaryBoxX + 75, summaryY, { align: 'right' });
     
     // Payment Status Box (Left side)
     const paymentBoxY = y;
@@ -557,7 +426,7 @@ const Invoices = () => {
     doc.setFont('helvetica', 'bold');
     doc.text('Amount Paid:', margin + 5, paymentBoxY + 10);
     doc.setTextColor(...successColor);
-    doc.text(`₹ ${(invoice.amounts?.amountPaid || invoice.amounts?.total || 0).toLocaleString('en-IN')}`, margin + 75, paymentBoxY + 10, { align: 'right' });
+    doc.text(`₹ ${(invoice.amounts?.amountPaid || 0).toLocaleString('en-IN')}`, margin + 75, paymentBoxY + 10, { align: 'right' });
     
     doc.setTextColor(71, 85, 105);
     doc.text('Amount Due:', margin + 5, paymentBoxY + 20);
@@ -630,6 +499,12 @@ const Invoices = () => {
         </div>
         
         <div class="section">
+          <div class="section-title">Customer</div>
+          <p><strong>Name:</strong> ${invoice.customer?.name || 'N/A'}</p>
+          <p><strong>Email:</strong> ${invoice.customer?.email || 'N/A'}</p>
+        </div>
+        
+        <div class="section">
           <div class="section-title">Items</div>
           <table>
             <thead>
@@ -643,10 +518,10 @@ const Invoices = () => {
             <tbody>
               ${(invoice.items || []).map(item => `
                 <tr>
-                  <td>${item.description || item.name || 'Item'}</td>
+                  <td>${item.description || 'Item'}</td>
                   <td>${item.quantity || 1}</td>
-                  <td>₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
-                  <td>₹${(item.totalPrice || item.price || 0).toFixed(2)}</td>
+                  <td>₹${(item.unitPrice || 0).toFixed(2)}</td>
+                  <td>₹${(item.totalPrice || 0).toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -654,10 +529,10 @@ const Invoices = () => {
         </div>
         
         <div class="section" style="text-align: right;">
-          <p>Subtotal: ₹${(invoice.amounts?.subtotal || invoice.subtotal || 0).toFixed(2)}</p>
-          <p>Tax: ₹${(invoice.amounts?.tax || invoice.tax || 0).toFixed(2)}</p>
+          <p>Subtotal: ₹${(invoice.amounts?.subtotal || 0).toFixed(2)}</p>
+          <p>Tax: ₹${(invoice.amounts?.tax || 0).toFixed(2)}</p>
           <p>Security Deposit: ₹${(invoice.amounts?.securityDeposit || 0).toFixed(2)}</p>
-          <p class="total-row">Total: ₹${(invoice.amounts?.total || invoice.total || 0).toFixed(2)}</p>
+          <p class="total-row">Total: ₹${(invoice.amounts?.total || 0).toFixed(2)}</p>
         </div>
         
         <div class="footer">
@@ -683,12 +558,6 @@ const Invoices = () => {
       case 'print':
         printInvoice(invoice);
         break;
-      case 'email':
-        toast.info('Email functionality coming soon!');
-        break;
-      case 'pay':
-        toast.info('Payment functionality coming soon!');
-        break;
       default:
         break;
     }
@@ -697,226 +566,145 @@ const Invoices = () => {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Invoices</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            View and manage your billing history
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 h-9 px-4 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
-            <FiDownload className="w-4 h-4" />
-            Export All
-          </button>
+          <p className="text-sm text-gray-500 mt-1">Manage and track all your invoices</p>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Invoices</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">{stats.total}</p>
+          <div className="text-sm text-gray-500">Total Invoices</div>
+          <div className="text-2xl font-semibold text-gray-900 mt-1">{stats.total}</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Billed</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">{formatCurrency(stats.totalAmount)}</p>
+          <div className="text-sm text-gray-500">Total Revenue</div>
+          <div className="text-2xl font-semibold text-emerald-600 mt-1">{formatCurrency(stats.totalRevenue)}</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Paid</p>
-          <p className="text-2xl font-semibold text-emerald-600 mt-1">{stats.paid}</p>
+          <div className="text-sm text-gray-500">Paid</div>
+          <div className="text-2xl font-semibold text-gray-900 mt-1">{stats.paid}</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Outstanding</p>
-          <p className="text-2xl font-semibold text-amber-600 mt-1">{formatCurrency(stats.pendingAmount)}</p>
+          <div className="text-sm text-gray-500">Pending Amount</div>
+          <div className="text-2xl font-semibold text-amber-600 mt-1">{formatCurrency(stats.pendingAmount)}</div>
         </div>
       </div>
 
-      {/* Invoices Table */}
+      {/* Main Content */}
       <div className="bg-white border border-gray-200 rounded-lg">
-        {/* Tabs */}
-        <div className="flex items-center gap-1 px-4 pt-3 border-b border-gray-200">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === tab.id
-                  ? 'text-gray-900 border-gray-900'
-                  : 'text-gray-500 border-transparent hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
-              {tab.id === 'overdue' && stats.overdue > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">
-                  {stats.overdue}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Toolbar */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            {/* Tabs */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Search Bar */}
-        <div className="flex items-center gap-3 p-4 border-b border-gray-100">
-          <div className="relative flex-1 max-w-sm">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search invoices..."
-              className="w-full h-9 pl-10 pr-4 text-sm bg-gray-50 border border-gray-200 rounded-md 
-                placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white"
-            />
-          </div>
-          <span className="text-sm text-gray-500">
-            {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
-        {/* Table */}
-        {isLoading ? (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Invoice</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Order</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Issue Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Due Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array(5).fill(0).map((_, i) => <InvoiceRowSkeleton key={i} />)}
-            </tbody>
-          </table>
-        ) : filteredInvoices.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Invoice</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Order</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Issue Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Due Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInvoices.map((invoice) => (
-                  <tr key={invoice._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    {/* Invoice Number */}
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                          <FiFileText className="w-4 h-4 text-gray-500" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">{invoice.invoiceNumber}</span>
-                      </div>
-                    </td>
-
-                    {/* Order */}
-                    <td className="px-4 py-4">
-                      <Link
-                        to={`/customer/orders/${invoice.order?._id}`}
-                        className="text-sm text-gray-600 hover:text-gray-900 hover:underline"
-                      >
-                        {invoice.order?.orderNumber}
-                      </Link>
-                    </td>
-
-                    {/* Issue Date */}
-                    <td className="px-4 py-4">
-                      <span className="text-sm text-gray-600">{formatDate(invoice.createdAt)}</span>
-                    </td>
-
-                    {/* Due Date */}
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-1.5">
-                        <FiCalendar className="w-4 h-4 text-gray-400" />
-                        <span className={`text-sm ${
-                          invoice.status === 'overdue' ? 'text-red-600 font-medium' : 'text-gray-600'
-                        }`}>
-                          {formatDate(invoice.dueDate)}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-4">
-                      <StatusBadge status={invoice.status} />
-                    </td>
-
-                    {/* Amount */}
-                    <td className="px-4 py-4">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(invoice.amounts?.total || invoice.total)}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleAction('download', invoice)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                          title="Download PDF"
-                        >
-                          <FiDownload className="w-4 h-4" />
-                          Download
-                        </button>
-                        {invoice.status === 'pending' && (
-                          <button
-                            onClick={() => handleAction('pay', invoice)}
-                            className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 transition-colors"
-                          >
-                            Pay Now
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-16">
-            <FiFileText className="w-12 h-12 text-gray-300 mb-4" />
-            <h3 className="text-base font-medium text-gray-900 mb-1">No invoices found</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              {activeTab !== 'all'
-                ? `You don't have any ${activeTab} invoices`
-                : searchQuery
-                ? 'Try adjusting your search query'
-                : "You don't have any invoices yet"}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Payment Information */}
-      {stats.pendingAmount > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <FiAlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-sm font-medium text-amber-800">Outstanding Balance</h4>
-              <p className="text-sm text-amber-700 mt-0.5">
-                You have {formatCurrency(stats.pendingAmount)} in pending invoices. 
-                Please clear your dues to avoid service interruption.
-              </p>
+            {/* Search */}
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search invoices..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-4 py-2 w-full md:w-64 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
           </div>
         </div>
-      )}
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                <th className="px-4 py-3">Invoice #</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Due Date</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Amount</th>
+                <th className="px-4 py-3 w-20">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => <InvoiceRowSkeleton key={i} />)
+              ) : filteredInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center">
+                      <FiFileText className="w-12 h-12 text-gray-300 mb-3" />
+                      <p className="text-gray-500 font-medium">No invoices found</p>
+                      <p className="text-gray-400 text-sm mt-1">
+                        {searchQuery
+                          ? 'Try a different search term'
+                          : 'Invoices will appear here when orders are placed'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredInvoices.map((invoice) => (
+                  <tr key={invoice._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-4">
+                      <span className="font-medium text-gray-900">{invoice.invoiceNumber}</span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{invoice.customer?.name || 'N/A'}</p>
+                        <p className="text-xs text-gray-500">{invoice.customer?.email || ''}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-600">
+                      {formatDate(invoice.createdAt)}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-600">
+                      {formatDate(invoice.dueDate)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <StatusBadge status={invoice.status} />
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="font-semibold text-gray-900">
+                        {formatCurrency(invoice.amounts?.total)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <button
+                        onClick={() => handleAction('download', invoice)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                        title="Download PDF"
+                      >
+                        <FiDownload className="w-4 h-4" />
+                        Download
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default Invoices;
+export default VendorInvoices;

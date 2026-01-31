@@ -15,6 +15,11 @@ exports.createProduct = async (req, res) => {
       }
     };
 
+    // Add company context if available (optional for backward compatibility)
+    if (req.companyId) {
+      productData.company = req.companyId;
+    }
+
     const product = await Product.create(productData);
 
     res.status(201).json({
@@ -41,12 +46,20 @@ exports.getProducts = async (req, res) => {
       search,
       city,
       condition,
+      companyId,
       page = 1,
       limit = 12,
       sort = '-createdAt'
     } = req.query;
 
     const query = { isActive: true };
+
+    // Company filter (optional for public listings, required for vendor/admin)
+    if (companyId) {
+      query.company = companyId;
+    } else if (req.companyId) {
+      query.company = req.companyId;
+    }
 
     // Category filter
     if (category) {
@@ -77,6 +90,7 @@ exports.getProducts = async (req, res) => {
 
     const products = await Product.find(query)
       .populate('vendor', 'name vendorInfo.businessName')
+      .populate('company', 'name slug')
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .sort(sort);
@@ -214,10 +228,17 @@ exports.getVendorProducts = async (req, res) => {
     const { page = 1, limit = 10, status } = req.query;
 
     const query = { vendor: req.user.id };
+    
+    // Scope by company if available
+    if (req.companyId) {
+      query.company = req.companyId;
+    }
+    
     if (status === 'active') query.isActive = true;
     if (status === 'inactive') query.isActive = false;
 
     const products = await Product.find(query)
+      .populate('company', 'name slug')
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });

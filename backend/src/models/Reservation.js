@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const reservationSchema = new mongoose.Schema({
+  // Multi-tenant: Company this reservation belongs to (optional for backward compatibility)
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    index: true
+  },
   product: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
@@ -39,7 +45,7 @@ const reservationSchema = new mongoose.Schema({
 });
 
 // Index for efficient availability queries
-reservationSchema.index({ product: 1, startDate: 1, endDate: 1 });
+reservationSchema.index({ company: 1, product: 1, startDate: 1, endDate: 1 });
 reservationSchema.index({ status: 1 });
 
 module.exports = mongoose.model('Reservation', reservationSchema);

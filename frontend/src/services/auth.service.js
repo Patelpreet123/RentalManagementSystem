@@ -95,6 +95,28 @@ const approveVendor = async (vendorId, token) => {
   return response.data.data;
 };
 
+// Select company (for multi-company users)
+const selectCompany = async (companyId, token) => {
+  const config = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+  const response = await axios.post(`${API_URL}/select-company`, { companyId }, config);
+  if (response.data.data.token) {
+    // Update localStorage with new token that includes company context
+    const existingUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const updatedUser = {
+      ...existingUser,
+      user: response.data.data.user,
+      token: response.data.data.token
+    };
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    localStorage.setItem('token', response.data.data.token);
+  }
+  return response.data.data;
+};
+
 const authService = {
   register,
   login,
@@ -105,6 +127,7 @@ const authService = {
   getAllUsers,
   updateUserStatus,
   approveVendor,
+  selectCompany,
 };
 
 export default authService;

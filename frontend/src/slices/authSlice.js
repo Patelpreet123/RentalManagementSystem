@@ -7,6 +7,9 @@ const user = JSON.parse(localStorage.getItem('user'));
 const initialState = {
   user: user ? user.user : null,
   token: user ? user.token : null,
+  companies: user ? user.companies : [],
+  activeCompany: user ? user.user?.activeCompany : null,
+  requiresCompanySelection: false,
   isAuthenticated: user ? true : false,
   isLoading: false,
   isSuccess: false,
@@ -33,6 +36,26 @@ export const login = createAsyncThunk(
   async (userData, thunkAPI) => {
     try {
       return await authService.login(userData);
+    } catch (error) {
+      const message = error.response?.data?.message || error.message;
+      return thunkAPI.rejectWithValue(message);
+    }
+  }
+);
+
+// Select company
+export const selectCompany = createAsyncThunk(
+  'auth/selectCompany',
+  async (companyId, thunkAPI) => {
+    try {
+      let token = thunkAPI.getState().auth.token;
+      if (!token) {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          token = JSON.parse(userData).token;
+        }
+      }
+      return await authService.selectCompany(companyId, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
       return thunkAPI.rejectWithValue(message);
@@ -93,6 +116,9 @@ const authSlice = createSlice({
       state.isError = false;
       state.message = '';
     },
+    setActiveCompany: (state, action) => {
+      state.activeCompany = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -106,6 +132,9 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.companies = action.payload.companies || [];
+        state.activeCompany = action.payload.user?.activeCompany || null;
+        state.requiresCompanySelection = action.payload.requiresCompanySelection || false;
       })
       .addCase(register.rejected, (state, action) => {
         state.isLoading = false;
@@ -125,6 +154,9 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.companies = action.payload.companies || [];
+        state.activeCompany = action.payload.user?.activeCompany || null;
+        state.requiresCompanySelection = action.payload.requiresCompanySelection || false;
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
@@ -134,11 +166,31 @@ const authSlice = createSlice({
         state.user = null;
         state.token = null;
       })
+      // Select Company
+      .addCase(selectCompany.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(selectCompany.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = true;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.activeCompany = action.payload.user?.activeCompany || null;
+        state.requiresCompanySelection = false;
+      })
+      .addCase(selectCompany.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+      })
       // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.token = null;
+        state.companies = [];
+        state.activeCompany = null;
         state.isAuthenticated = false;
+        state.requiresCompanySelection = false;
       })
       // Get Me
       .addCase(getMe.pending, (state) => {
@@ -148,6 +200,8 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload;
+        state.companies = action.payload.companies || [];
+        state.activeCompany = action.payload.activeCompany || null;
       })
       .addCase(getMe.rejected, (state, action) => {
         state.isLoading = false;
@@ -174,5 +228,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { reset } = authSlice.actions;
+export const { reset, setActiveCompany } = authSlice.actions;
 export default authSlice.reducer;

@@ -15,7 +15,7 @@ import {
   FiLogOut,
   FiSettings,
   FiChevronDown,
-  FiBell,
+  FiHeart,
   FiHelpCircle,
   FiSearch,
 } from 'react-icons/fi';
@@ -214,11 +214,13 @@ const CustomerLayout = () => {
                 )}
               </NavLink>
 
-              {/* Notifications */}
-              <button className="relative flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
-                <FiBell className="w-5 h-5" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
+              {/* Favorites */}
+              <NavLink
+                to="/customer/favorites"
+                className="relative flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <FiHeart className="w-5 h-5" />
+              </NavLink>
 
               {/* Help */}
               <button className="hidden sm:flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { getProducts, getCategories, selectAllProducts, selectCategories } from '../../slices/productSlice';
@@ -72,11 +72,43 @@ const sortOptions = [
 ];
 
 // Product Card Component
-const ProductCard = ({ product, onAddToCart }) => {
-  const [isLiked, setIsLiked] = useState(false);
+const ProductCard = ({ product, onAddToCart, userId }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  
+  // Handle both API (isActive) and local (availability) formats
+  const isAvailable = product.isActive ?? product.availability ?? true;
+
+  // Check if product is in favorites on mount
+  useEffect(() => {
+    const favKey = `favorites_${userId || 'guest'}`;
+    const favorites = JSON.parse(localStorage.getItem(favKey) || '[]');
+    setIsLiked(favorites.some(fav => fav._id === product._id));
+  }, [product._id, userId]);
+
+  const handleToggleFavorite = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const favKey = `favorites_${userId || 'guest'}`;
+    const favorites = JSON.parse(localStorage.getItem(favKey) || '[]');
+    
+    if (isLiked) {
+      // Remove from favorites
+      const newFavorites = favorites.filter(fav => fav._id !== product._id);
+      localStorage.setItem(favKey, JSON.stringify(newFavorites));
+      setIsLiked(false);
+      toast.success('Removed from favorites');
+    } else {
+      // Add to favorites
+      favorites.push(product);
+      localStorage.setItem(favKey, JSON.stringify(favorites));
+      setIsLiked(true);
+      toast.success('Added to favorites');
+    }
+  };
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -112,7 +144,7 @@ const ProductCard = ({ product, onAddToCart }) => {
         )}
 
         {/* Availability Badge */}
-        {!product.availability && (
+        {!isAvailable && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <span className="px-3 py-1 bg-white text-gray-900 text-xs font-medium rounded-full">
               Currently Unavailable
@@ -123,11 +155,7 @@ const ProductCard = ({ product, onAddToCart }) => {
         {/* Quick Actions */}
         <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsLiked(!isLiked);
-            }}
+            onClick={handleToggleFavorite}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
               isLiked
                 ? 'bg-red-500 text-white'
@@ -181,11 +209,11 @@ const ProductCard = ({ product, onAddToCart }) => {
           </div>
           <button
             onClick={handleAddToCart}
-            disabled={!product.availability || isAdding}
+            disabled={!isAvailable || isAdding}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
               isAdding
                 ? 'bg-emerald-100 text-emerald-700'
-                : product.availability
+                : isAvailable
                 ? 'bg-gray-900 text-white hover:bg-gray-800'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
@@ -211,6 +239,9 @@ const ProductCard = ({ product, onAddToCart }) => {
 // Product Row Component (List View)
 const ProductRow = ({ product, onAddToCart }) => {
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Handle both API (isActive) and local (availability) formats
+  const isAvailable = product.isActive ?? product.availability ?? true;
 
   const handleAddToCart = () => {
     setIsAdding(true);
@@ -259,7 +290,7 @@ const ProductRow = ({ product, onAddToCart }) => {
                   {product.ratings?.average?.toFixed(1)}
                 </span>
               </div>
-              {!product.availability && (
+              {!isAvailable && (
                 <span className="text-xs text-red-600">Unavailable</span>
               )}
             </div>
@@ -272,11 +303,11 @@ const ProductRow = ({ product, onAddToCart }) => {
             </div>
             <button
               onClick={handleAddToCart}
-              disabled={!product.availability || isAdding}
+              disabled={!isAvailable || isAdding}
               className={`mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                 isAdding
                   ? 'bg-emerald-100 text-emerald-700'
-                  : product.availability
+                  : isAvailable
                   ? 'bg-gray-900 text-white hover:bg-gray-800'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
@@ -325,6 +356,7 @@ const Products = () => {
   const products = useSelector(selectAllProducts);
   const storeCategories = useSelector(selectCategories);
   const { isLoading } = useSelector((state) => state.products);
+  const { user } = useSelector((state) => state.auth);
   
   // Build categories list with "All Categories" option
   const categories = ['All Categories', ...storeCategories];
@@ -344,6 +376,11 @@ const Products = () => {
     availability: searchParams.get('availability') !== 'false',
   });
   const [sortBy, setSortBy] = useState('relevance');
+
+  // Fetch products on mount
+  useEffect(() => {
+    dispatch(getProducts());
+  }, [dispatch]);
 
   // Update filters when URL changes
   useEffect(() => {
@@ -372,7 +409,9 @@ const Products = () => {
     if (filters.maxPrice && product.pricing?.daily > Number(filters.maxPrice)) {
       return false;
     }
-    if (filters.availability && !product.availability) {
+    // Check availability - handle both API (isActive) and local (availability) formats
+    const isAvailable = product.isActive ?? product.availability ?? true;
+    if (filters.availability && !isAvailable) {
       return false;
     }
     return true;
@@ -392,7 +431,10 @@ const Products = () => {
   });
 
   const handleAddToCart = (product) => {
-    dispatch(addToCart({ product, quantity: 1, duration: 1 }));
+    // Set default rental dates (today to 7 days from now)
+    const startDate = new Date().toISOString();
+    const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    dispatch(addToCart({ product, quantity: 1, duration: 1, startDate, endDate }));
     toast.success(`${product.name} added to cart`);
   };
 
@@ -627,6 +669,7 @@ const Products = () => {
                 key={product._id}
                 product={product}
                 onAddToCart={handleAddToCart}
+                userId={user?.id}
               />
             ))}
           </div>

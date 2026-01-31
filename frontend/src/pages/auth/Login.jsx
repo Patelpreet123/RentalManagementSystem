@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { login, reset } from '../../slices/authSlice';
 import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
@@ -15,9 +15,13 @@ const Login = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isLoading, isError, isSuccess, message } = useSelector(
     (state) => state.auth
   );
+
+  // Get redirect path from state (e.g., from checkout)
+  const from = location.state?.from || null;
 
   useEffect(() => {
     if (isError) {
@@ -26,18 +30,24 @@ const Login = () => {
 
     if (isSuccess && user) {
       toast.success('Login successful!');
-      // Redirect based on role
-      if (user.role === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (user.role === 'vendor') {
-        navigate('/vendor/dashboard');
+      
+      // If there's a redirect path (like from checkout), go there
+      if (from) {
+        navigate(from);
       } else {
-        navigate('/customer/dashboard');
+        // Otherwise redirect based on role
+        if (user.role === 'admin') {
+          navigate('/admin/dashboard');
+        } else if (user.role === 'vendor') {
+          navigate('/vendor/dashboard');
+        } else {
+          navigate('/customer/dashboard');
+        }
       }
     }
 
     dispatch(reset());
-  }, [user, isError, isSuccess, message, navigate, dispatch]);
+  }, [user, isError, isSuccess, message, navigate, dispatch, from]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

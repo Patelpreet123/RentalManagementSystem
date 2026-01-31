@@ -13,11 +13,18 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Category is required'],
-    enum: ['electronics', 'furniture', 'vehicles', 'tools', 'sports', 'party', 'clothing', 'other']
+    enum: ['electronics', 'furniture', 'vehicles', 'tools', 'sports', 'party', 'clothing', 'cameras', 'audio', 'outdoor', 'transport', 'other'],
+    lowercase: true
   },
   images: [{
     type: String
   }],
+  // Multi-tenant: Company this product belongs to (optional for backward compatibility)
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    index: true
+  },
   vendor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

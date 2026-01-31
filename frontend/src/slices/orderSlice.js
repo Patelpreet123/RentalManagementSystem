@@ -12,12 +12,30 @@ const initialState = {
   message: '',
 };
 
+// Helper function to get token with localStorage fallback
+const getToken = (thunkAPI) => {
+  let token = thunkAPI.getState().auth.token;
+  // Fallback to localStorage if token not in Redux state (e.g., after refresh)
+  if (!token) {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        token = JSON.parse(userData).token;
+      } catch (e) {
+        console.error('Error parsing user data from localStorage');
+      }
+    }
+  }
+  return token;
+};
+
 // Create order
 export const createOrder = createAsyncThunk(
   'orders/create',
   async (orderData, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await orderService.createOrder(orderData, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -31,7 +49,8 @@ export const getMyOrders = createAsyncThunk(
   'orders/getMyOrders',
   async (params, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await orderService.getMyOrders(params, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -45,7 +64,8 @@ export const getVendorOrders = createAsyncThunk(
   'orders/getVendorOrders',
   async (params, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await orderService.getVendorOrders(params, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -59,7 +79,8 @@ export const getOrder = createAsyncThunk(
   'orders/getOne',
   async (orderId, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await orderService.getOrder(orderId, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -71,10 +92,11 @@ export const getOrder = createAsyncThunk(
 // Update order status
 export const updateOrderStatus = createAsyncThunk(
   'orders/updateStatus',
-  async ({ orderId, statusData }, thunkAPI) => {
+  async ({ orderId, status }, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
-      return await orderService.updateOrderStatus(orderId, statusData, token);
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
+      return await orderService.updateOrderStatus(orderId, { status }, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
       return thunkAPI.rejectWithValue(message);
@@ -87,7 +109,8 @@ export const cancelOrder = createAsyncThunk(
   'orders/cancel',
   async (orderId, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await orderService.cancelOrder(orderId, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -101,7 +124,8 @@ export const getAllOrders = createAsyncThunk(
   'orders/getAll',
   async (params, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await orderService.getAllOrders(params, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -115,7 +139,8 @@ export const getOrderStats = createAsyncThunk(
   'orders/getStats',
   async (_, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await orderService.getOrderStats(token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -148,6 +173,10 @@ const orderSlice = createSlice({
         state.isLoading = false;
         state.isSuccess = true;
         state.order = action.payload;
+        // Also add to orders list so it shows up immediately
+        if (action.payload) {
+          state.orders = [action.payload, ...state.orders];
+        }
       })
       .addCase(createOrder.rejected, (state, action) => {
         state.isLoading = false;

@@ -6,6 +6,12 @@ const invoiceSchema = new mongoose.Schema({
     unique: true,
     required: true
   },
+  // Multi-tenant: Company this invoice belongs to (optional for backward compatibility)
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    index: true
+  },
   order: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order',

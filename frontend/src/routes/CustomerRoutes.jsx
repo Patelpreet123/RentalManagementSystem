@@ -8,6 +8,7 @@ import Checkout from '../pages/customer/Checkout';
 import MyOrders from '../pages/customer/MyOrders';
 import CustomerDashboard from '../pages/customer/Dashboard';
 import Invoices from '../pages/customer/Invoices';
+import Favorites from '../pages/customer/Favorites';
 
 // Placeholder components
 const OrderDetail = () => <div className="space-y-6"><div className="bg-white border border-gray-200 rounded-lg p-6"><h1 className="text-xl font-semibold text-gray-900">Order Details</h1><p className="text-sm text-gray-500 mt-1">Order information will be displayed here</p></div></div>;
@@ -27,6 +28,7 @@ const CustomerRoutes = () => {
         <Route path="orders" element={<MyOrders />} />
         <Route path="orders/:id" element={<OrderDetail />} />
         <Route path="invoices" element={<Invoices />} />
+        <Route path="favorites" element={<Favorites />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Home />} />

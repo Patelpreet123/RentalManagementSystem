@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectCartItems, selectCartTotal, clearCart } from '../../slices/cartSlice';
 import { createOrder } from '../../slices/orderSlice';
+
+// Helper to calculate item price
+const calculateItemPrice = (item, startDate, endDate) => {
+  const dailyRate = item.product?.pricing?.daily || 0;
+  if (!startDate || !endDate) return dailyRate * item.quantity;
+  const days = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
+  return dailyRate * item.quantity * days;
+};
 import { toast } from 'react-toastify';
 import {
   FiPackage,
@@ -20,8 +28,9 @@ const Checkout = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const cartItems = useSelector(selectCartItems);
-  const cartTotal = useSelector(selectCartTotal);
-  const { user } = useSelector((state) => state.auth);
+  const cartTotal = useSelector(selectCartTotal) || 0;
+  const rentalPeriod = useSelector((state) => state.cart.rentalPeriod);
+  const { user, isAuthenticated } = useSelector((state) => state.auth);
   const { isLoading } = useSelector((state) => state.orders);
 
   const [step, setStep] = useState(1);
@@ -36,6 +45,14 @@ const Checkout = () => {
   });
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Check authentication - redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      toast.info('Please login to proceed with checkout');
+      navigate('/login', { state: { from: '/customer/checkout' } });
+    }
+  }, [isAuthenticated, navigate]);
 
   const serviceFee = cartTotal * 0.1;
   const totalAmount = cartTotal + serviceFee;
@@ -76,43 +93,72 @@ const Checkout = () => {
   };
 
   const handlePlaceOrder = async () => {
+    // Get rental dates from cart state, or default to 7 days from now
+    const defaultStartDate = new Date();
+    const defaultEndDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    
+    const startDate = rentalPeriod?.startDate || defaultStartDate.toISOString();
+    const endDate = rentalPeriod?.endDate || defaultEndDate.toISOString();
+    
+    // Format order data to match backend expectations
     const orderData = {
       items: cartItems.map((item) => ({
-        product: item.product._id,
+        productId: item.product._id, // Backend expects productId, not product
         quantity: item.quantity,
-        pricePerDay: item.product.pricing?.daily,
       })),
       rentalPeriod: {
-        startDate: cartItems[0]?.startDate,
-        endDate: cartItems[0]?.endDate,
+        startDate,
+        endDate,
       },
+      deliveryMethod: 'pickup', // Default to pickup for now
       deliveryAddress: {
         street: shippingInfo.address,
         city: shippingInfo.city,
         state: shippingInfo.state,
         zipCode: shippingInfo.zipCode,
       },
-      contactInfo: {
-        name: shippingInfo.fullName,
-        email: shippingInfo.email,
-        phone: shippingInfo.phone,
-      },
-      paymentMethod,
+      notes: `Contact: ${shippingInfo.fullName}, ${shippingInfo.phone}, ${shippingInfo.email}`,
     };
 
+    console.log('Creating order with data:', orderData);
+
     try {
-      await dispatch(createOrder(orderData)).unwrap();
+      const result = await dispatch(createOrder(orderData)).unwrap();
+      console.log('Order created successfully:', result);
       dispatch(clearCart());
-      toast.success('Order placed successfully!');
-      navigate('/orders');
+      toast.success('🎉 Payment successful! Order placed successfully.');
+      navigate('/customer/orders');
     } catch (error) {
-      toast.error(error?.message || 'Failed to place order');
+      console.error('Order creation failed:', error);
+      toast.error(error?.message || error || 'Failed to place order');
     }
   };
 
+  // Don't render if not authenticated (wait for redirect)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Redirect if cart is empty
   if (cartItems.length === 0) {
-    navigate('/cart');
-    return null;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Your cart is empty</h2>
+          <p className="text-gray-500 mb-6">Add some products to proceed with checkout</p>
+          <button 
+            onClick={() => navigate('/customer/products')}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Browse Products
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -343,44 +389,47 @@ const Checkout = () => {
             <h2 className="text-lg font-bold text-gray-900 mb-4">Order Summary</h2>
 
             <div className="space-y-4 pb-4 border-b border-gray-200">
-              {cartItems.map((item) => (
-                <div key={item.product._id} className="flex gap-3">
-                  <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                    {item.product.images?.[0] ? (
-                      <img
-                        src={item.product.images[0]}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <FiPackage className="w-5 h-5 text-gray-400" />
-                      </div>
-                    )}
+              {cartItems.map((item) => {
+                const itemPrice = calculateItemPrice(item, rentalPeriod?.startDate, rentalPeriod?.endDate);
+                return (
+                  <div key={item.product._id} className="flex gap-3">
+                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                      {item.product.images?.[0] ? (
+                        <img
+                          src={item.product.images[0]}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FiPackage className="w-5 h-5 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-sm line-clamp-1">
+                        {item.product.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {rentalPeriod?.startDate ? formatDate(rentalPeriod.startDate) : 'Start'} - {rentalPeriod?.endDate ? formatDate(rentalPeriod.endDate) : 'End'}
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 mt-1">
+                        ₹{itemPrice.toFixed(2)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm line-clamp-1">
-                      {item.product.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {formatDate(item.startDate)} - {formatDate(item.endDate)}
-                    </p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">
-                      ${item.totalPrice.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="py-4 space-y-2 border-b border-gray-200">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Subtotal</span>
-                <span className="text-gray-900">${cartTotal.toFixed(2)}</span>
+                <span className="text-gray-900">₹{cartTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Service Fee (10%)</span>
-                <span className="text-gray-900">${serviceFee.toFixed(2)}</span>
+                <span className="text-gray-900">₹{serviceFee.toFixed(2)}</span>
               </div>
             </div>
 
@@ -388,7 +437,7 @@ const Checkout = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-900 font-semibold">Total</span>
                 <span className="text-2xl font-bold text-blue-600">
-                  ${totalAmount.toFixed(2)}
+                  ₹{totalAmount.toFixed(2)}
                 </span>
               </div>
             </div>

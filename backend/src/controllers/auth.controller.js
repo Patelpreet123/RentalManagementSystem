@@ -1,9 +1,14 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Company = require('../models/Company');
 
-// Generate JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+// Generate JWT Token with optional company context
+const generateToken = (userId, companyId = null) => {
+  const payload = { id: userId };
+  if (companyId) {
+    payload.companyId = companyId;
+  }
+  return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
 };
@@ -13,7 +18,7 @@ const generateToken = (id) => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role, phone } = req.body;
+    const { name, email, password, role, phone, companyName } = req.body;
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -33,7 +38,24 @@ exports.register = async (req, res) => {
       phone
     });
 
-    const token = generateToken(user._id);
+    // If registering as admin/vendor, create or join a company
+    if (role === 'admin' && companyName) {
+      const company = await Company.create({
+        name: companyName,
+        owner: user._id
+      });
+
+      user.companyMemberships = [{
+        company: company._id,
+        role: 'owner',
+        isDefault: true,
+        permissions: ['all']
+      }];
+      user.activeCompany = company._id;
+      await user.save();
+    }
+
+    const token = generateToken(user._id, user.activeCompany);
 
     res.status(201).json({
       success: true,
@@ -42,9 +64,11 @@ exports.register = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          activeCompany: user.activeCompany
         },
-        token
+        token,
+        requiresCompanySelection: false
       }
     });
   } catch (error) {
@@ -70,8 +94,12 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    // Check for user with company memberships populated
+    const user = await User.findOne({ email })
+      .select('+password')
+      .populate('companyMemberships.company', 'name slug isTestCompany isActive')
+      .populate('activeCompany', 'name slug');
+      
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -96,7 +124,23 @@ exports.login = async (req, res) => {
       });
     }
 
-    const token = generateToken(user._id);
+    // Get active company memberships
+    const activeCompanies = user.companyMemberships?.filter(m => 
+      m.isActive && m.company?.isActive
+    ) || [];
+
+    // Determine if company selection is needed
+    const requiresCompanySelection = activeCompanies.length > 1 && !user.activeCompany;
+    
+    // Auto-select company if only one exists
+    let selectedCompany = user.activeCompany;
+    if (!selectedCompany && activeCompanies.length === 1) {
+      selectedCompany = activeCompanies[0].company._id;
+      user.activeCompany = selectedCompany;
+      await user.save();
+    }
+
+    const token = generateToken(user._id, selectedCompany);
 
     res.json({
       success: true,
@@ -105,7 +149,81 @@ exports.login = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          activeCompany: selectedCompany ? {
+            id: selectedCompany._id || selectedCompany,
+            name: user.activeCompany?.name
+          } : null
+        },
+        token,
+        requiresCompanySelection,
+        companies: activeCompanies.map(m => ({
+          id: m.company._id,
+          name: m.company.name,
+          slug: m.company.slug,
+          role: m.role,
+          isTestCompany: m.company.isTestCompany
+        }))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Select company (for multi-company users)
+// @route   POST /api/auth/select-company
+// @access  Private
+exports.selectCompany = async (req, res) => {
+  try {
+    const { companyId } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
+      });
+    }
+
+    const user = await User.findById(req.user.id)
+      .populate('companyMemberships.company', 'name slug isActive');
+
+    // Verify user has access to this company
+    const membership = user.companyMemberships.find(
+      m => m.company._id.toString() === companyId && m.isActive && m.company.isActive
+    );
+
+    if (!membership) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this company'
+      });
+    }
+
+    // Update user's active company
+    user.activeCompany = companyId;
+    await user.save();
+
+    // Generate new token with company context
+    const token = generateToken(user._id, companyId);
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          companyRole: membership.role,
+          activeCompany: {
+            id: membership.company._id,
+            name: membership.company.name,
+            slug: membership.company.slug
+          }
         },
         token
       }
@@ -123,11 +241,37 @@ exports.login = async (req, res) => {
 // @access  Private
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id)
+      .populate('companyMemberships.company', 'name slug isTestCompany isActive')
+      .populate('activeCompany', 'name slug');
+
+    const activeCompanies = user.companyMemberships?.filter(m => 
+      m.isActive && m.company?.isActive
+    ) || [];
 
     res.json({
       success: true,
-      data: user
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address,
+        isActive: user.isActive,
+        activeCompany: user.activeCompany ? {
+          id: user.activeCompany._id,
+          name: user.activeCompany.name,
+          slug: user.activeCompany.slug
+        } : null,
+        companies: activeCompanies.map(m => ({
+          id: m.company._id,
+          name: m.company.name,
+          slug: m.company.slug,
+          role: m.role,
+          isTestCompany: m.company.isTestCompany
+        }))
+      }
     });
   } catch (error) {
     res.status(500).json({

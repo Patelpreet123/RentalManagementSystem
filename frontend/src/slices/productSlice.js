@@ -1,6 +1,23 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import productService from '../services/product.service';
 
+// Helper function to get token with localStorage fallback
+const getToken = (thunkAPI) => {
+  let token = thunkAPI.getState().auth.token;
+  // Fallback to localStorage if token not in Redux state (e.g., after refresh)
+  if (!token) {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        token = JSON.parse(userData).token;
+      } catch (e) {
+        console.error('Error parsing user data from localStorage');
+      }
+    }
+  }
+  return token;
+};
+
 // Dummy products for the frontend-only workflow
 const dummyProducts = [
   {
@@ -113,7 +130,7 @@ const initialState = {
   products: [],
   localProducts: dummyProducts, // Local products for frontend-only workflow
   product: null,
-  categories: ['Electronics', 'Cameras', 'Audio', 'Tools', 'Furniture', 'Outdoor', 'Transport'],
+  categories: ['Electronics', 'Cameras', 'Audio', 'Tools', 'Furniture', 'Outdoor', 'Transport', 'Vehicles', 'Sports', 'Party', 'Clothing', 'Other'],
   pagination: null,
   isLoading: false,
   isSuccess: false,
@@ -165,7 +182,8 @@ export const createProduct = createAsyncThunk(
   'products/create',
   async (productData, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await productService.createProduct(productData, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -179,7 +197,8 @@ export const updateProduct = createAsyncThunk(
   'products/update',
   async ({ productId, productData }, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await productService.updateProduct(productId, productData, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -193,7 +212,8 @@ export const deleteProduct = createAsyncThunk(
   'products/delete',
   async (productId, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       await productService.deleteProduct(productId, token);
       return productId;
     } catch (error) {
@@ -208,7 +228,8 @@ export const getVendorProducts = createAsyncThunk(
   'products/getVendorProducts',
   async (params, thunkAPI) => {
     try {
-      const token = thunkAPI.getState().auth.token;
+      const token = getToken(thunkAPI);
+      if (!token) return thunkAPI.rejectWithValue('No authentication token found');
       return await productService.getVendorProducts(params, token);
     } catch (error) {
       const message = error.response?.data?.message || error.message;
@@ -356,11 +377,10 @@ const productSlice = createSlice({
 
 export const { reset, clearProduct, addProductLocal, updateProductLocal, deleteProductLocal, getProductLocal } = productSlice.actions;
 
-// Selectors
-export const selectAllProducts = (state) => state.products.localProducts;
-export const selectVendorProducts = (state) => state.products.localProducts.filter(
-  p => p._id.startsWith('local-') // Products added by current vendor session
-);
+// Selectors - Use API products if available, fallback to localProducts for demo
+export const selectAllProducts = (state) => 
+  state.products.products.length > 0 ? state.products.products : state.products.localProducts;
+export const selectVendorProducts = (state) => state.products.products;
 export const selectCategories = (state) => state.products.categories;
 
 export default productSlice.reducer;

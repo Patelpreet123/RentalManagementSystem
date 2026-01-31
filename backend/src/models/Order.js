@@ -6,6 +6,12 @@ const orderSchema = new mongoose.Schema({
     unique: true,
     required: true
   },
+  // Multi-tenant: Company this order belongs to (optional for backward compatibility)
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    index: true
+  },
   customer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

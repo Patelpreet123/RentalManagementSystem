@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Invoice = require('../models/Invoice');
 const reservationService = require('../services/reservation.service');
 const pricingService = require('../services/pricing.service');
 
@@ -10,11 +11,12 @@ exports.createOrder = async (req, res) => {
   try {
     const { items, rentalPeriod, deliveryMethod, deliveryAddress, notes } = req.body;
 
-    // Validate items and check availability
+    // Validate items
     const orderItems = [];
     let subtotal = 0;
     let totalDeposit = 0;
     let vendorId = null;
+    let companyId = null;
 
     for (const item of items) {
       const product = await Product.findById(item.productId);
@@ -28,6 +30,7 @@ exports.createOrder = async (req, res) => {
       // Set vendor (all items must be from same vendor in this MVP)
       if (!vendorId) {
         vendorId = product.vendor;
+        companyId = product.company; // Get company from product
       } else if (product.vendor.toString() !== vendorId.toString()) {
         return res.status(400).json({
           success: false,
@@ -35,25 +38,10 @@ exports.createOrder = async (req, res) => {
         });
       }
 
-      // Check availability
-      const availability = await reservationService.checkAvailability(
-        item.productId,
-        new Date(rentalPeriod.startDate),
-        new Date(rentalPeriod.endDate),
-        item.quantity
-      );
-
-      if (!availability.isAvailable) {
-        return res.status(400).json({
-          success: false,
-          message: `Product ${product.name} is not available for the selected dates`
-        });
-      }
-
       // Calculate pricing
       const duration = Math.ceil(
         (new Date(rentalPeriod.endDate) - new Date(rentalPeriod.startDate)) / (1000 * 60 * 60 * 24)
-      );
+      ) || 1;
       const itemPrice = pricingService.calculateRentalPrice(product.pricing, duration, item.quantity);
 
       orderItems.push({
@@ -64,24 +52,30 @@ exports.createOrder = async (req, res) => {
       });
 
       subtotal += itemPrice;
-      totalDeposit += product.pricing.securityDeposit * item.quantity;
+      totalDeposit += (product.pricing.securityDeposit || 0) * item.quantity;
     }
 
     // Calculate tax (10%)
     const tax = subtotal * 0.1;
     const total = subtotal + tax + totalDeposit;
 
-    // Create order
+    // Generate order number
+    const orderCount = await Order.countDocuments();
+    const orderNumber = `ORD-${Date.now()}-${orderCount + 1}`;
+
+    // Create order with company context
     const order = await Order.create({
+      orderNumber,
       customer: req.user.id,
       vendor: vendorId,
+      company: companyId, // Include company from product
       items: orderItems,
       rentalPeriod: {
         startDate: rentalPeriod.startDate,
         endDate: rentalPeriod.endDate,
         duration: Math.ceil(
           (new Date(rentalPeriod.endDate) - new Date(rentalPeriod.startDate)) / (1000 * 60 * 60 * 24)
-        ),
+        ) || 1,
         durationType: 'days'
       },
       pricing: {
@@ -90,23 +84,67 @@ exports.createOrder = async (req, res) => {
         tax,
         total
       },
+      status: 'confirmed',
+      paymentStatus: 'paid',
       deliveryMethod,
       deliveryAddress,
       notes: { customer: notes },
-      timeline: [{ status: 'pending', note: 'Order created' }]
+      timeline: [
+        { status: 'confirmed', note: 'Order placed successfully' },
+        { status: 'paid', note: 'Payment completed' }
+      ]
     });
 
-    // Create reservations
-    for (const item of orderItems) {
-      await reservationService.createReservation({
-        product: item.product,
-        order: order._id,
-        customer: req.user.id,
-        quantity: item.quantity,
-        startDate: rentalPeriod.startDate,
-        endDate: rentalPeriod.endDate
+    // Auto-generate invoice for the order
+    const invoiceCount = await Invoice.countDocuments();
+    const invoiceNumber = `INV-${Date.now()}-${invoiceCount + 1}`;
+
+    // Build invoice items from order items
+    const invoiceItems = orderItems.map(item => ({
+      description: `Product Rental (${item.quantity} x ${Math.ceil(
+        (new Date(rentalPeriod.endDate) - new Date(rentalPeriod.startDate)) / (1000 * 60 * 60 * 24)
+      ) || 1} days)`,
+      quantity: item.quantity,
+      unitPrice: item.pricePerDay,
+      totalPrice: item.totalPrice
+    }));
+
+    // Add security deposit as line item if exists
+    if (totalDeposit > 0) {
+      invoiceItems.push({
+        description: 'Security Deposit (Refundable)',
+        quantity: 1,
+        unitPrice: totalDeposit,
+        totalPrice: totalDeposit
       });
     }
+
+    const invoice = await Invoice.create({
+      invoiceNumber,
+      order: order._id,
+      customer: req.user.id,
+      vendor: vendorId,
+      company: companyId,
+      items: invoiceItems,
+      amounts: {
+        subtotal,
+        tax,
+        discount: 0,
+        securityDeposit: totalDeposit,
+        total,
+        amountPaid: total,
+        amountDue: 0
+      },
+      status: 'paid',
+      dueDate: new Date(),
+      paidDate: new Date(),
+      payments: [{
+        amount: total,
+        method: 'card',
+        date: new Date(),
+        transactionId: `PAY-${Date.now()}`
+      }]
+    });
 
     const populatedOrder = await Order.findById(order._id)
       .populate('customer', 'name email phone')
@@ -118,6 +156,7 @@ exports.createOrder = async (req, res) => {
       data: populatedOrder
     });
   } catch (error) {
+    console.error('Order creation error:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -170,11 +209,18 @@ exports.getVendorOrders = async (req, res) => {
     const { status, page = 1, limit = 10 } = req.query;
 
     const query = { vendor: req.user.id };
+    
+    // Scope by company if available
+    if (req.companyId) {
+      query.company = req.companyId;
+    }
+    
     if (status) query.status = status;
 
     const orders = await Order.find(query)
       .populate('customer', 'name email phone')
       .populate('items.product', 'name images')
+      .populate('company', 'name slug')
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });

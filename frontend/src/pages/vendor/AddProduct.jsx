@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { addProductLocal, reset, selectCategories } from '../../slices/productSlice';
-import { FiArrowLeft, FiPackage, FiDollarSign, FiToggleLeft, FiToggleRight, FiCheck } from 'react-icons/fi';
+import { createProduct } from '../../slices/productSlice';
+import { FiArrowLeft, FiPackage, FiDollarSign, FiToggleLeft, FiToggleRight, FiCheck, FiImage, FiUploadCloud, FiX, FiTrash2 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 
 // ============================================================================
@@ -12,16 +12,19 @@ import { toast } from 'react-toastify';
 const AddProduct = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const categories = useSelector(selectCategories);
   const { user } = useSelector((state) => state.auth);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [images, setImages] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     category: '',
     totalQuantity: 1,
-    condition: 'New',
+    condition: 'good', // Default to 'good' - matches backend enum
     pricing: {
       daily: '',
       weekly: '',
@@ -33,6 +36,98 @@ const AddProduct = () => {
 
   // Validation errors
   const [errors, setErrors] = useState({});
+
+  // Handle image file selection
+  const handleImageFiles = useCallback((files) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxImages = 5;
+
+    const newImages = [];
+    
+    for (const file of files) {
+      if (images.length + newImages.length >= maxImages) {
+        toast.warning(`Maximum ${maxImages} images allowed`);
+        break;
+      }
+      
+      if (!validTypes.includes(file.type)) {
+        toast.error(`${file.name} is not a valid image type`);
+        continue;
+      }
+      
+      if (file.size > maxSize) {
+        toast.error(`${file.name} is too large (max 5MB)`);
+        continue;
+      }
+
+      // Create preview URL and store file
+      const preview = URL.createObjectURL(file);
+      newImages.push({
+        file,
+        preview,
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      });
+    }
+
+    if (newImages.length > 0) {
+      setImages(prev => [...prev, ...newImages]);
+    }
+  }, [images.length]);
+
+  // Handle drag events
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    handleImageFiles(files);
+  }, [handleImageFiles]);
+
+  // Handle file input change
+  const handleFileInputChange = (e) => {
+    const files = Array.from(e.target.files);
+    handleImageFiles(files);
+    e.target.value = ''; // Reset input
+  };
+
+  // Remove image
+  const removeImage = (imageId) => {
+    setImages(prev => {
+      const imageToRemove = prev.find(img => img.id === imageId);
+      if (imageToRemove) {
+        URL.revokeObjectURL(imageToRemove.preview);
+      }
+      return prev.filter(img => img.id !== imageId);
+    });
+  };
+
+  // Set image as primary (move to first position)
+  const setAsPrimary = (imageId) => {
+    setImages(prev => {
+      const index = prev.findIndex(img => img.id === imageId);
+      if (index > 0) {
+        const newImages = [...prev];
+        const [image] = newImages.splice(index, 1);
+        newImages.unshift(image);
+        return newImages;
+      }
+      return prev;
+    });
+  };
 
   // Handle input changes
   const handleChange = (e) => {
@@ -89,7 +184,7 @@ const AddProduct = () => {
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -99,36 +194,55 @@ const AddProduct = () => {
 
     setIsSubmitting(true);
 
-    // Construct complete product object
-    const productData = {
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      category: formData.category,
-      condition: formData.condition,
-      totalQuantity: parseInt(formData.totalQuantity, 10),
-      availability: formData.availability,
-      pricing: {
-        daily: parseFloat(formData.pricing.daily) || 0,
-        weekly: parseFloat(formData.pricing.weekly) || parseFloat(formData.pricing.daily) * 6,
-        monthly: parseFloat(formData.pricing.monthly) || parseFloat(formData.pricing.daily) * 25,
-        securityDeposit: parseFloat(formData.pricing.securityDeposit) || parseFloat(formData.pricing.daily) * 3,
-      },
-      images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400'], // Default placeholder
-      vendor: {
-        _id: user?.id || 'vendor-1',
-        name: user?.name || 'Vendor Store',
-      },
-    };
+    try {
+      // Convert images to base64 for upload
+      const imageUrls = [];
+      
+      for (const image of images) {
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(image.file);
+        });
+        imageUrls.push(base64);
+      }
 
-    // Dispatch to Redux store (local state only)
-    dispatch(addProductLocal(productData));
-    
-    // Simulate slight delay for UX
-    setTimeout(() => {
+      // Use default placeholder if no images uploaded
+      const finalImages = imageUrls.length > 0 
+        ? imageUrls 
+        : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400'];
+
+      // Construct complete product object for API
+      // Note: Backend expects totalQuantity at root level, it builds inventory object itself
+      const productData = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        category: formData.category.toLowerCase(),
+        condition: formData.condition, // Already lowercase from dropdown
+        totalQuantity: parseInt(formData.totalQuantity, 10),
+        isActive: true, // New products should be active
+        pricing: {
+          daily: parseFloat(formData.pricing.daily) || 0,
+          weekly: parseFloat(formData.pricing.weekly) || parseFloat(formData.pricing.daily) * 6,
+          monthly: parseFloat(formData.pricing.monthly) || parseFloat(formData.pricing.daily) * 25,
+          securityDeposit: parseFloat(formData.pricing.securityDeposit) || parseFloat(formData.pricing.daily) * 3,
+        },
+        images: finalImages,
+      };
+
+      // Dispatch to backend API
+      await dispatch(createProduct(productData)).unwrap();
+      
+      // Cleanup image preview URLs
+      images.forEach(img => URL.revokeObjectURL(img.preview));
+      
       setIsSubmitting(false);
       toast.success('Product added successfully!');
       navigate('/vendor/products');
-    }, 500);
+    } catch (error) {
+      setIsSubmitting(false);
+      toast.error(error || 'Failed to add product');
+    }
   };
 
   // Format currency display
@@ -142,8 +256,13 @@ const AddProduct = () => {
     }).format(value);
   };
 
-  // Conditions list
-  const conditions = ['New', 'Like New', 'Excellent', 'Good', 'Fair'];
+  // Conditions list - must match backend enum: ['new', 'like-new', 'good', 'fair']
+  const conditions = [
+    { value: 'new', label: 'New' },
+    { value: 'like-new', label: 'Like New' },
+    { value: 'good', label: 'Good' },
+    { value: 'fair', label: 'Fair' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -226,9 +345,18 @@ const AddProduct = () => {
                     }`}
                   >
                     <option value="">Select category</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                    <option value="electronics">Electronics</option>
+                    <option value="cameras">Cameras</option>
+                    <option value="audio">Audio</option>
+                    <option value="tools">Tools</option>
+                    <option value="furniture">Furniture</option>
+                    <option value="outdoor">Outdoor</option>
+                    <option value="transport">Transport</option>
+                    <option value="vehicles">Vehicles</option>
+                    <option value="sports">Sports</option>
+                    <option value="party">Party</option>
+                    <option value="clothing">Clothing</option>
+                    <option value="other">Other</option>
                   </select>
                   {errors.category && <p className="mt-1 text-xs text-red-500">{errors.category}</p>}
                 </div>
@@ -244,7 +372,7 @@ const AddProduct = () => {
                     className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white transition-all"
                   >
                     {conditions.map((cond) => (
-                      <option key={cond} value={cond}>{cond}</option>
+                      <option key={cond.value} value={cond.value}>{cond.label}</option>
                     ))}
                   </select>
                 </div>
@@ -292,6 +420,111 @@ const AddProduct = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Product Images */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                <FiImage className="w-5 h-5 text-gray-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Product Images</h2>
+                <p className="text-xs text-gray-500">Upload up to 5 images (JPEG, PNG, WebP - max 5MB each)</p>
+              </div>
+            </div>
+
+            {/* Drag & Drop Zone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                isDragging 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+              <FiUploadCloud className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
+              <p className="text-sm font-medium text-gray-700 mb-1">
+                {isDragging ? 'Drop images here' : 'Drag & drop images here'}
+              </p>
+              <p className="text-xs text-gray-500">
+                or <span className="text-blue-600 hover:underline">browse from your computer</span>
+              </p>
+            </div>
+
+            {/* Image Previews */}
+            {images.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-gray-700">
+                    Uploaded Images ({images.length}/5)
+                  </p>
+                  {images.length > 0 && (
+                    <p className="text-xs text-gray-500">First image will be the primary image</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                  {images.map((image, index) => (
+                    <div 
+                      key={image.id} 
+                      className={`relative group aspect-square rounded-lg overflow-hidden border-2 ${
+                        index === 0 ? 'border-blue-500' : 'border-gray-200'
+                      }`}
+                    >
+                      <img
+                        src={image.preview}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      {/* Primary badge */}
+                      {index === 0 && (
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-blue-500 text-white text-xs font-medium rounded">
+                          Primary
+                        </div>
+                      )}
+                      {/* Hover overlay with actions */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        {index !== 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAsPrimary(image.id);
+                            }}
+                            className="p-2 bg-white rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                            title="Set as primary"
+                          >
+                            <FiCheck className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeImage(image.id);
+                          }}
+                          className="p-2 bg-white rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                          title="Remove"
+                        >
+                          <FiTrash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pricing */}

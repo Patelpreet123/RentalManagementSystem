@@ -303,8 +303,9 @@ const MyOrders = () => {
     dispatch(getMyOrders());
   }, [dispatch]);
 
-  // Use store orders or dummy data
-  const orders = storeOrders?.length > 0 ? storeOrders : dummyOrders;
+  // Use API data only - no fallback to dummy data
+  const apiOrders = storeOrders?.data || storeOrders || [];
+  const orders = Array.isArray(apiOrders) ? apiOrders : [];
 
   // Filter orders based on tab and search
   const filteredOrders = orders.filter((order) => {

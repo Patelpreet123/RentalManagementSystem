@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   register,
   login,
+  selectCompany,
   getMe,
   updateProfile,
   changePassword,
@@ -18,6 +19,7 @@ router.post('/register', register);
 router.post('/login', login);
 
 // Protected routes
+router.post('/select-company', protect, selectCompany);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
 router.put('/password', protect, changePassword);
