@@ -135,7 +135,9 @@ exports.getAdminDashboard = async (req, res) => {
     const companyId = req.companyId;
 
     // Build query with company scope
-    const baseQuery = companyId ? { company: companyId } : {};
+    const baseQuery = companyId && mongoose.Types.ObjectId.isValid(companyId) 
+      ? { company: new mongoose.Types.ObjectId(companyId) } 
+      : {};
 
     // User stats
     const totalUsers = await User.countDocuments();
@@ -147,101 +149,115 @@ exports.getAdminDashboard = async (req, res) => {
     const totalCustomers = await User.countDocuments({ role: 'customer' });
 
     // Product stats
-    const totalProducts = await Product.countDocuments(baseQuery);
-    const activeProducts = await Product.countDocuments({ ...baseQuery, isActive: true });
+    const totalProducts = await Product.countDocuments();
+    const activeProducts = await Product.countDocuments({ isActive: true });
 
     // Order stats
-    const totalOrders = await Order.countDocuments(baseQuery);
-    const activeRentals = await Order.countDocuments({ ...baseQuery, status: 'active' });
-    const pendingOrders = await Order.countDocuments({ ...baseQuery, status: 'pending' });
+    const totalOrders = await Order.countDocuments();
+    const activeRentals = await Order.countDocuments({ status: 'active' });
+    const pendingOrders = await Order.countDocuments({ status: 'pending' });
 
     // Revenue calculation
-    const revenueResult = await Order.aggregate([
-      { 
-        $match: { 
-          ...(companyId && { company: new mongoose.Types.ObjectId(companyId) }),
-          paymentStatus: 'paid'
-        } 
-      },
-      { 
-        $group: { 
-          _id: null, 
-          totalRevenue: { $sum: '$pricing.total' }
-        } 
-      }
-    ]);
-
-    const totalRevenue = revenueResult[0]?.totalRevenue || 0;
+    let totalRevenue = 0;
+    try {
+      const revenueResult = await Order.aggregate([
+        { 
+          $match: { 
+            paymentStatus: 'paid'
+          } 
+        },
+        { 
+          $group: { 
+            _id: null, 
+            totalRevenue: { $sum: '$pricing.total' }
+          } 
+        }
+      ]);
+      totalRevenue = revenueResult[0]?.totalRevenue || 0;
+    } catch (e) {
+      console.error('Revenue aggregation error:', e);
+    }
 
     // Recent activity
-    const recentOrders = await Order.find(baseQuery)
+    const recentOrders = await Order.find()
       .populate('customer', 'name email')
       .populate('vendor', 'name')
       .sort({ createdAt: -1 })
       .limit(10);
 
     // Top performing vendors
-    const topVendors = await Order.aggregate([
-      { 
-        $match: { 
-          ...(companyId && { company: new mongoose.Types.ObjectId(companyId) }),
-          paymentStatus: 'paid'
-        } 
-      },
-      {
-        $group: {
-          _id: '$vendor',
-          totalRevenue: { $sum: '$pricing.total' },
-          orderCount: { $sum: 1 }
+    let topVendors = [];
+    try {
+      topVendors = await Order.aggregate([
+        { 
+          $match: { 
+            paymentStatus: 'paid'
+          } 
+        },
+        {
+          $group: {
+            _id: '$vendor',
+            totalRevenue: { $sum: '$pricing.total' },
+            orderCount: { $sum: 1 }
+          }
+        },
+        { $sort: { totalRevenue: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'vendorInfo'
+          }
+        },
+        {
+          $unwind: {
+            path: '$vendorInfo',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            name: { $ifNull: ['$vendorInfo.name', 'Unknown Vendor'] },
+            businessName: { $ifNull: ['$vendorInfo.vendorInfo.businessName', 'Unknown Business'] },
+            totalRevenue: 1,
+            orderCount: 1
+          }
         }
-      },
-      { $sort: { totalRevenue: -1 } },
-      { $limit: 5 },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'vendorInfo'
-        }
-      },
-      {
-        $unwind: '$vendorInfo'
-      },
-      {
-        $project: {
-          _id: 1,
-          name: '$vendorInfo.name',
-          businessName: '$vendorInfo.vendorInfo.businessName',
-          totalRevenue: 1,
-          orderCount: 1
-        }
-      }
-    ]);
+      ]);
+    } catch (e) {
+      console.error('Top vendors aggregation error:', e);
+    }
 
     // Monthly stats (last 6 months)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    const monthlyStats = await Order.aggregate([
-      {
-        $match: {
-          ...(companyId && { company: new mongoose.Types.ObjectId(companyId) }),
-          createdAt: { $gte: sixMonthsAgo }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          revenue: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$pricing.total', 0] } },
-          orders: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
-    ]);
+    let monthlyStats = [];
+    try {
+      monthlyStats = await Order.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: sixMonthsAgo }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            revenue: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$pricing.total', 0] } },
+            orders: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]);
+    } catch (e) {
+      console.error('Monthly stats aggregation error:', e);
+    }
 
     res.json({
       success: true,
@@ -264,6 +280,7 @@ exports.getAdminDashboard = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Admin dashboard error:', error);
     res.status(500).json({
       success: false,
       message: error.message

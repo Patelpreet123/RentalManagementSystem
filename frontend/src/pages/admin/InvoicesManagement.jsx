@@ -1,35 +1,39 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { getMyInvoices } from '../../slices/invoiceSlice';
+import { getAllInvoices } from '../../slices/invoiceSlice';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   FiFileText,
   FiSearch,
+  FiFilter,
   FiEye,
   FiDownload,
   FiChevronLeft,
   FiChevronRight,
   FiX,
   FiDollarSign,
+  FiUser,
   FiCalendar,
   FiPackage,
   FiRefreshCw,
   FiCheckCircle,
   FiClock,
   FiAlertCircle,
+  FiPrinter,
 } from 'react-icons/fi';
 import {
   PieChart,
   Pie,
   Cell,
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
 } from 'recharts';
 
 // ============================================
@@ -42,6 +46,7 @@ const SkeletonBox = ({ className = '' }) => (
 const TableRowSkeleton = () => (
   <tr className="border-b border-gray-100">
     <td className="py-4 px-4"><SkeletonBox className="h-4 w-24" /></td>
+    <td className="py-4 px-4"><SkeletonBox className="h-4 w-32" /></td>
     <td className="py-4 px-4"><SkeletonBox className="h-4 w-28" /></td>
     <td className="py-4 px-4"><SkeletonBox className="h-4 w-20" /></td>
     <td className="py-4 px-4"><SkeletonBox className="h-6 w-16 rounded-full" /></td>
@@ -54,22 +59,19 @@ const TableRowSkeleton = () => (
 // STATUS CONFIGURATION
 // ============================================
 const statusConfig = {
-  draft: { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', color: '#6b7280', icon: FiFileText },
-  sent: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', color: '#3b82f6', icon: FiFileText },
-  paid: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', color: '#22c55e', icon: FiCheckCircle },
-  partial: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', color: '#f59e0b', icon: FiClock },
-  pending: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', color: '#f59e0b', icon: FiClock },
-  overdue: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', color: '#ef4444', icon: FiAlertCircle },
-  cancelled: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', color: '#dc2626', icon: FiX },
+  draft: { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', color: '#6b7280' },
+  sent: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', color: '#3b82f6' },
+  paid: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', color: '#22c55e' },
+  partial: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', color: '#f59e0b' },
+  overdue: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', color: '#ef4444' },
+  cancelled: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', color: '#dc2626' },
 };
 
 const StatusBadge = ({ status }) => {
   const config = statusConfig[status] || statusConfig.draft;
-  const Icon = config.icon;
   const label = status.charAt(0).toUpperCase() + status.slice(1);
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border ${config.bg} ${config.text} ${config.border}`}>
-      <Icon className="w-3 h-3" />
+    <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium border ${config.bg} ${config.text} ${config.border}`}>
       {label}
     </span>
   );
@@ -122,16 +124,25 @@ const InvoiceDetailModal = ({ invoice, onClose, onDownload }) => {
               </div>
             </div>
 
-            {/* Vendor Info */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-gray-600 mb-2">
-                <FiPackage className="w-4 h-4" />
-                <span className="text-sm font-medium">Vendor</span>
+            {/* Customer & Vendor */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-gray-600 mb-2">
+                  <FiUser className="w-4 h-4" />
+                  <span className="text-sm font-medium">Customer</span>
+                </div>
+                <p className="font-semibold text-gray-900">{invoice.customer?.name || 'N/A'}</p>
+                <p className="text-sm text-gray-500">{invoice.customer?.email}</p>
               </div>
-              <p className="font-semibold text-gray-900">
-                {invoice.vendor?.vendorInfo?.businessName || invoice.vendor?.name || 'N/A'}
-              </p>
-              <p className="text-sm text-gray-500">{invoice.vendor?.email}</p>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-gray-600 mb-2">
+                  <FiPackage className="w-4 h-4" />
+                  <span className="text-sm font-medium">Vendor</span>
+                </div>
+                <p className="font-semibold text-gray-900">
+                  {invoice.vendor?.vendorInfo?.businessName || invoice.vendor?.name || 'N/A'}
+                </p>
+              </div>
             </div>
 
             {/* Invoice Items */}
@@ -202,7 +213,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onDownload }) => {
               </div>
             </div>
 
-            {/* Due Date */}
+            {/* Due Date & Payment Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="border border-gray-200 rounded-lg p-3">
                 <div className="flex items-center gap-2 text-gray-600 mb-1">
@@ -235,29 +246,30 @@ const InvoiceDetailModal = ({ invoice, onClose, onDownload }) => {
 // ============================================
 // MAIN COMPONENT
 // ============================================
-const CustomerInvoices = () => {
+const InvoicesManagement = () => {
   const dispatch = useDispatch();
-  const { invoices: storeInvoices, isLoading } = useSelector((state) => state.invoices);
+  const { invoices, pagination, isLoading } = useSelector((state) => state.invoices);
   
   // Local state
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   // Fetch invoices
+  const fetchInvoices = (page = 1) => {
+    const params = { page, limit: 20 };
+    if (statusFilter) params.status = statusFilter;
+    dispatch(getAllInvoices(params));
+    setCurrentPage(page);
+  };
+
   useEffect(() => {
-    dispatch(getMyInvoices());
-  }, [dispatch]);
+    fetchInvoices(1);
+  }, [statusFilter]);
 
-  // Get invoices array
-  const invoices = useMemo(() => {
-    const data = storeInvoices?.data || storeInvoices || [];
-    return Array.isArray(data) ? data : [];
-  }, [storeInvoices]);
-
-  // Filter invoices by search term and status
+  // Filter invoices by search term and type
   const filteredInvoices = useMemo(() => {
     let filtered = invoices;
     
@@ -265,25 +277,19 @@ const CustomerInvoices = () => {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(inv => 
         inv.invoiceNumber?.toLowerCase().includes(term) ||
+        inv.customer?.name?.toLowerCase().includes(term) ||
+        inv.customer?.email?.toLowerCase().includes(term) ||
         inv.vendor?.name?.toLowerCase().includes(term) ||
         inv.vendor?.vendorInfo?.businessName?.toLowerCase().includes(term)
       );
     }
     
-    if (statusFilter) {
-      filtered = filtered.filter(inv => inv.status === statusFilter);
+    if (typeFilter) {
+      filtered = filtered.filter(inv => inv.invoiceType === typeFilter);
     }
     
     return filtered;
-  }, [invoices, searchTerm, statusFilter]);
-
-  // Pagination
-  const paginatedInvoices = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredInvoices.slice(start, start + itemsPerPage);
-  }, [filteredInvoices, currentPage]);
-
-  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+  }, [invoices, searchTerm, typeFilter]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -302,16 +308,16 @@ const CustomerInvoices = () => {
       color: statusConfig[status]?.color || '#6b7280',
     }));
 
-    // Monthly spending
-    const monthlyData = {};
+    // Group by vendor for chart
+    const vendorRevenue = {};
     invoices.forEach(inv => {
-      const month = new Date(inv.createdAt).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-      monthlyData[month] = (monthlyData[month] || 0) + (inv.amounts?.total || 0);
+      const vendorName = inv.vendor?.vendorInfo?.businessName || inv.vendor?.name || 'Unknown';
+      vendorRevenue[vendorName] = (vendorRevenue[vendorName] || 0) + (inv.amounts?.total || 0);
     });
-    const spendingData = Object.entries(monthlyData).slice(-6).map(([month, amount]) => ({
-      month,
-      amount
-    }));
+    const vendorData = Object.entries(vendorRevenue)
+      .map(([name, revenue]) => ({ name: name.substring(0, 15), revenue }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
 
     return { 
       total: invoices.length, 
@@ -319,10 +325,10 @@ const CustomerInvoices = () => {
       paidAmount, 
       pendingAmount,
       paid: statusCounts.paid || 0,
-      pending: (statusCounts.sent || 0) + (statusCounts.pending || 0) + (statusCounts.draft || 0),
+      pending: (statusCounts.sent || 0) + (statusCounts.draft || 0),
       overdue: statusCounts.overdue || 0,
       statusData,
-      spendingData
+      vendorData
     };
   }, [invoices]);
 
@@ -363,13 +369,18 @@ const CustomerInvoices = () => {
     doc.text(new Date(invoice.createdAt).toLocaleDateString(), 50, 55);
     doc.text(new Date(invoice.dueDate).toLocaleDateString(), 50, 62);
     
-    // Vendor
+    // Customer & Vendor
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('From:', 120, 55);
+    doc.text('Bill To:', 20, 80);
+    doc.text('From:', 120, 80);
+    
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text(invoice.vendor?.vendorInfo?.businessName || invoice.vendor?.name || 'Vendor', 120, 63);
+    doc.text(invoice.customer?.name || 'Customer', 20, 88);
+    doc.text(invoice.customer?.email || '', 20, 95);
+    
+    doc.text(invoice.vendor?.vendorInfo?.businessName || invoice.vendor?.name || 'Vendor', 120, 88);
     
     // Items table
     const tableData = invoice.items?.map(item => [
@@ -380,7 +391,7 @@ const CustomerInvoices = () => {
     ]) || [];
     
     autoTable(doc, {
-      startY: 80,
+      startY: 110,
       head: [['Description', 'Qty', 'Unit Price', 'Total']],
       body: tableData,
       theme: 'striped',
@@ -395,7 +406,7 @@ const CustomerInvoices = () => {
     });
     
     // Summary
-    const finalY = doc.lastAutoTable?.finalY || 120;
+    const finalY = doc.lastAutoTable?.finalY || 150;
     
     doc.setFontSize(9);
     doc.text('Subtotal:', 130, finalY + 15);
@@ -404,25 +415,32 @@ const CustomerInvoices = () => {
     doc.text('Tax:', 130, finalY + 22);
     doc.text(`₹${(invoice.amounts?.tax || 0).toFixed(2)}`, 190, finalY + 22, { align: 'right' });
     
+    if (invoice.amounts?.securityDeposit > 0) {
+      doc.text('Security Deposit:', 130, finalY + 29);
+      doc.text(`₹${invoice.amounts.securityDeposit.toFixed(2)}`, 190, finalY + 29, { align: 'right' });
+    }
+    
     doc.setDrawColor(200, 200, 200);
-    doc.line(130, finalY + 28, 190, finalY + 28);
+    doc.line(130, finalY + 35, 190, finalY + 35);
     
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('Total:', 130, finalY + 36);
-    doc.text(`₹${(invoice.amounts?.total || 0).toFixed(2)}`, 190, finalY + 36, { align: 'right' });
+    doc.text('Total:', 130, finalY + 43);
+    doc.text(`₹${(invoice.amounts?.total || 0).toFixed(2)}`, 190, finalY + 43, { align: 'right' });
     
     doc.save(`${invoice.invoiceNumber || 'invoice'}.pdf`);
   };
 
   // Download all invoices as CSV
   const downloadCSV = () => {
-    const headers = ['Invoice Number', 'Date', 'Vendor', 'Status', 'Subtotal', 'Tax', 'Total', 'Paid', 'Due'];
+    const headers = ['Invoice Number', 'Date', 'Customer', 'Vendor', 'Status', 'Type', 'Subtotal', 'Tax', 'Total', 'Paid', 'Due'];
     const rows = filteredInvoices.map(inv => [
       inv.invoiceNumber,
       new Date(inv.createdAt).toLocaleDateString(),
+      inv.customer?.name || 'N/A',
       inv.vendor?.vendorInfo?.businessName || inv.vendor?.name || 'N/A',
       inv.status,
+      inv.invoiceType || 'vendor',
       inv.amounts?.subtotal?.toFixed(2) || '0.00',
       inv.amounts?.tax?.toFixed(2) || '0.00',
       inv.amounts?.total?.toFixed(2) || '0.00',
@@ -438,20 +456,20 @@ const CustomerInvoices = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `my_invoices_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Invoices</h1>
-          <p className="text-gray-600 mt-1">View and download your rental invoices</p>
+          <h1 className="text-2xl font-bold text-gray-900">Invoices Management</h1>
+          <p className="text-gray-600 mt-1">View and manage all vendor invoices</p>
         </div>
         <button
-          onClick={() => dispatch(getMyInvoices())}
+          onClick={() => fetchInvoices(currentPage)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <FiRefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -475,7 +493,7 @@ const CustomerInvoices = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Total Spent</p>
+              <p className="text-sm text-gray-500">Total Amount</p>
               <p className="text-2xl font-bold text-gray-900">₹{stats.totalAmount.toFixed(2)}</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
@@ -498,7 +516,7 @@ const CustomerInvoices = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Amount Due</p>
+              <p className="text-sm text-gray-500">Pending/Due</p>
               <p className="text-2xl font-bold text-amber-600">₹{stats.pendingAmount.toFixed(2)}</p>
               <p className="text-xs text-gray-500">{stats.overdue} overdue</p>
             </div>
@@ -513,16 +531,16 @@ const CustomerInvoices = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Status Distribution */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Invoice Status</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Invoice Status Distribution</h3>
           {stats.statusData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
                   data={stats.statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={45}
-                  outerRadius={70}
+                  innerRadius={50}
+                  outerRadius={80}
                   paddingAngle={2}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -536,50 +554,44 @@ const CustomerInvoices = () => {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-44 flex items-center justify-center text-gray-400">
-              No invoices yet
+            <div className="h-48 flex items-center justify-center text-gray-400">
+              No data available
             </div>
           )}
         </div>
 
-        {/* Monthly Spending */}
+        {/* Revenue by Vendor */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Monthly Spending</h3>
-          {stats.spendingData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={stats.spendingData}>
-                <defs>
-                  <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Top Vendors by Invoice Amount</h3>
+          {stats.vendorData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={stats.vendorData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" tickFormatter={(v) => `₹${v}`} />
-                <Tooltip formatter={(v) => [`₹${v.toFixed(2)}`, 'Amount']} />
-                <Area type="monotone" dataKey="amount" stroke="#6366f1" fillOpacity={1} fill="url(#colorAmount)" />
-              </AreaChart>
+                <XAxis type="number" tick={{ fontSize: 11 }} stroke="#9ca3af" tickFormatter={(v) => `₹${v}`} />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} stroke="#9ca3af" width={100} />
+                <Tooltip formatter={(v) => [`₹${v.toFixed(2)}`, 'Revenue']} />
+                <Bar dataKey="revenue" fill="#6366f1" radius={[0, 4, 4, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-44 flex items-center justify-center text-gray-400">
-              No spending data
+            <div className="h-48 flex items-center justify-center text-gray-400">
+              No data available
             </div>
           )}
         </div>
       </div>
 
-      {/* Filters & Search */}
+      {/* Filters & Search & Download */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col lg:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by invoice number or vendor..."
+              placeholder="Search by invoice number, customer, or vendor..."
               value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
@@ -587,16 +599,27 @@ const CustomerInvoices = () => {
           {/* Status Filter */}
           <select
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => setStatusFilter(e.target.value)}
             className="px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           >
             <option value="">All Status</option>
             <option value="draft">Draft</option>
             <option value="sent">Sent</option>
             <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
+            <option value="partial">Partial</option>
             <option value="overdue">Overdue</option>
             <option value="cancelled">Cancelled</option>
+          </select>
+
+          {/* Type Filter */}
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="">All Types</option>
+            <option value="vendor">Vendor Invoices</option>
+            <option value="customer">Customer Invoices</option>
           </select>
 
           {/* Download Button */}
@@ -617,9 +640,11 @@ const CustomerInvoices = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Invoice</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Vendor</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
@@ -627,20 +652,24 @@ const CustomerInvoices = () => {
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} />)
-              ) : paginatedInvoices.length === 0 ? (
+              ) : filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-gray-500">
+                  <td colSpan="8" className="py-12 text-center text-gray-500">
                     <FiFileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                     <p className="font-medium">No invoices found</p>
-                    <p className="text-sm">Your rental invoices will appear here</p>
+                    <p className="text-sm">Try adjusting your search or filters</p>
                   </td>
                 </tr>
               ) : (
-                paginatedInvoices.map((invoice) => (
+                filteredInvoices.map((invoice) => (
                   <tr key={invoice._id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-4 px-4">
                       <p className="font-medium text-gray-900 text-sm">{invoice.invoiceNumber}</p>
                       <p className="text-xs text-gray-500">{invoice.items?.length || 0} item(s)</p>
+                    </td>
+                    <td className="py-4 px-4">
+                      <p className="font-medium text-gray-900 text-sm">{invoice.customer?.name || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">{invoice.customer?.email}</p>
                     </td>
                     <td className="py-4 px-4">
                       <p className="font-medium text-gray-900 text-sm">
@@ -657,6 +686,15 @@ const CustomerInvoices = () => {
                     </td>
                     <td className="py-4 px-4">
                       <StatusBadge status={invoice.status} />
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        invoice.invoiceType === 'customer' 
+                          ? 'bg-blue-50 text-blue-700' 
+                          : 'bg-purple-50 text-purple-700'
+                      }`}>
+                        {invoice.invoiceType === 'customer' ? 'Customer' : 'Vendor'}
+                      </span>
                     </td>
                     <td className="py-4 px-4 text-right">
                       <p className="font-semibold text-gray-900">₹{invoice.amounts?.total?.toFixed(2) || '0.00'}</p>
@@ -691,27 +729,27 @@ const CustomerInvoices = () => {
       </div>
 
       {/* Pagination */}
-      {!isLoading && filteredInvoices.length > itemsPerPage && (
+      {!isLoading && filteredInvoices.length > 0 && pagination?.pages > 1 && (
         <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
           <p className="text-sm text-gray-600">
-            Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-            <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredInvoices.length)}</span> of{' '}
-            <span className="font-medium">{filteredInvoices.length}</span> invoices
+            Showing <span className="font-medium">{(currentPage - 1) * 20 + 1}</span> to{' '}
+            <span className="font-medium">{Math.min(currentPage * 20, pagination.total)}</span> of{' '}
+            <span className="font-medium">{pagination.total}</span> invoices
           </p>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setCurrentPage(p => p - 1)}
+              onClick={() => fetchInvoices(currentPage - 1)}
               disabled={currentPage === 1}
               className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FiChevronLeft className="w-5 h-5" />
             </button>
             <span className="px-4 py-2 text-sm font-medium text-gray-700">
-              Page {currentPage} of {totalPages}
+              Page {currentPage} of {pagination.pages}
             </span>
             <button
-              onClick={() => setCurrentPage(p => p + 1)}
-              disabled={currentPage === totalPages}
+              onClick={() => fetchInvoices(currentPage + 1)}
+              disabled={currentPage === pagination.pages}
               className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FiChevronRight className="w-5 h-5" />
@@ -732,4 +770,4 @@ const CustomerInvoices = () => {
   );
 };
 
-export default CustomerInvoices;
+export default InvoicesManagement;
