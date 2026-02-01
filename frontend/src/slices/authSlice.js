@@ -3,6 +3,8 @@ import authService from '../services/auth.service';
 
 // Get user from localStorage
 const user = JSON.parse(localStorage.getItem('user'));
+// Get pending verification from sessionStorage (survives page refresh but not browser close)
+const pendingVerification = JSON.parse(sessionStorage.getItem('pendingVerification'));
 
 const initialState = {
   user: user ? user.user : null,
@@ -10,11 +12,14 @@ const initialState = {
   companies: user ? user.companies : [],
   activeCompany: user ? user.user?.activeCompany : null,
   requiresCompanySelection: false,
-  isAuthenticated: user ? true : false,
+  isAuthenticated: user?.token ? true : false,
   isLoading: false,
   isSuccess: false,
   isError: false,
   message: '',
+  // NEW: Pending verification state - separate from authenticated state
+  pendingVerification: pendingVerification || null, // { email, userId, emailSent }
+  registrationComplete: false, // Flag to trigger navigation
 };
 
 // Register user
@@ -115,9 +120,22 @@ const authSlice = createSlice({
       state.isSuccess = false;
       state.isError = false;
       state.message = '';
+      state.registrationComplete = false;
     },
     setActiveCompany: (state, action) => {
       state.activeCompany = action.payload;
+    },
+    // NEW: Clear pending verification after successful verification
+    clearPendingVerification: (state) => {
+      state.pendingVerification = null;
+      sessionStorage.removeItem('pendingVerification');
+    },
+    // NEW: Set pending verification (for page refresh recovery)
+    setPendingVerification: (state, action) => {
+      state.pendingVerification = action.payload;
+      if (action.payload) {
+        sessionStorage.setItem('pendingVerification', JSON.stringify(action.payload));
+      }
     },
   },
   extraReducers: (builder) => {
@@ -129,12 +147,35 @@ const authSlice = createSlice({
       .addCase(register.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
-        state.isAuthenticated = true;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.companies = action.payload.companies || [];
-        state.activeCompany = action.payload.user?.activeCompany || null;
-        state.requiresCompanySelection = action.payload.requiresCompanySelection || false;
+        state.registrationComplete = true;
+        
+        // Check if email verification is required
+        if (action.payload.requiresEmailVerification) {
+          // Don't set authenticated - user must verify email first
+          state.isAuthenticated = false;
+          state.user = null; // Don't store user in main state until verified
+          state.token = null;
+          
+          // Store pending verification info separately
+          state.pendingVerification = {
+            email: action.payload.user.email,
+            userId: action.payload.user.id,
+            name: action.payload.user.name,
+            role: action.payload.user.role,
+            emailSent: action.payload.emailSent
+          };
+          // Persist to sessionStorage for page refresh recovery
+          sessionStorage.setItem('pendingVerification', JSON.stringify(state.pendingVerification));
+        } else {
+          // Email verification skipped - full authentication
+          state.isAuthenticated = true;
+          state.user = action.payload.user;
+          state.token = action.payload.token;
+          state.companies = action.payload.companies || [];
+          state.activeCompany = action.payload.user?.activeCompany || null;
+          state.requiresCompanySelection = action.payload.requiresCompanySelection || false;
+          state.pendingVerification = null;
+        }
       })
       .addCase(register.rejected, (state, action) => {
         state.isLoading = false;
@@ -191,6 +232,8 @@ const authSlice = createSlice({
         state.activeCompany = null;
         state.isAuthenticated = false;
         state.requiresCompanySelection = false;
+        state.pendingVerification = null;
+        sessionStorage.removeItem('pendingVerification');
       })
       // Get Me
       .addCase(getMe.pending, (state) => {
@@ -234,5 +277,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { reset, setActiveCompany } = authSlice.actions;
+export const { reset, setActiveCompany, clearPendingVerification, setPendingVerification } = authSlice.actions;
 export default authSlice.reducer;

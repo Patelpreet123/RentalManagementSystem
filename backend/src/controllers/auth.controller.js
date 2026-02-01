@@ -29,13 +29,14 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user
+    // Create user (email not verified yet)
     const user = await User.create({
       name,
       email,
       password,
       role: role || 'customer',
-      phone
+      phone,
+      isEmailVerified: process.env.SKIP_EMAIL_VERIFICATION === 'true' // Skip if env var is set
     });
 
     // If registering as admin/vendor, create or join a company
@@ -55,22 +56,70 @@ exports.register = async (req, res) => {
       await user.save();
     }
 
-    const token = generateToken(user._id, user.activeCompany);
+    // Send verification email (only if not skipping)
+    const EmailVerification = require('../models/EmailVerification');
+    const emailService = require('../services/email.service');
+    
+    let emailSent = false;
+    const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+    
+    if (!skipEmailVerification) {
+      try {
+        const code = EmailVerification.generateCode();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    res.status(201).json({
+        const verification = new EmailVerification({
+          user: user._id,
+          email: user.email,
+          expiresAt,
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('user-agent')
+        });
+
+        // Hash the code and store it
+        verification.codeHash = verification.hashCode(code);
+        await verification.save();
+
+        // Send verification email (codes are NOT logged in production)
+        try {
+          await emailService.sendVerificationEmail(user.email, code, user.name);
+          emailSent = true;
+        } catch (err) {
+          console.error('❌ Email sending failed:', err.message);
+        }
+      } catch (emailError) {
+        console.error('❌ Email verification setup failed:', emailError);
+        // Continue even if email fails - user can request resend
+      }
+    }
+
+    // Don't generate token yet - user must verify email first (unless skipping)
+    const response = {
       success: true,
+      message: skipEmailVerification 
+        ? 'Registration successful!' 
+        : emailSent 
+          ? 'Registration successful. Please check your email for verification code.'
+          : 'Registration successful. Please request a new verification code.',
       data: {
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
-          activeCompany: user.activeCompany
+          isEmailVerified: user.isEmailVerified
         },
-        token,
-        requiresCompanySelection: false
+        requiresEmailVerification: !skipEmailVerification && !user.isEmailVerified,
+        emailSent
       }
-    });
+    };
+    
+    // If email verification is skipped, provide token immediately
+    if (skipEmailVerification) {
+      response.data.token = generateToken(user._id, user.activeCompany);
+    }
+    
+    res.status(201).json(response);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -124,6 +173,16 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Check if email is verified
+    if (!user.isEmailVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email address before logging in',
+        requiresEmailVerification: true,
+        email: user.email
+      });
+    }
+
     // Get active company memberships
     const activeCompanies = user.companyMemberships?.filter(m => 
       m.isActive && m.company?.isActive
@@ -150,6 +209,7 @@ exports.login = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          isEmailVerified: user.isEmailVerified,
           activeCompany: selectedCompany ? {
             id: selectedCompany._id || selectedCompany,
             name: user.activeCompany?.name

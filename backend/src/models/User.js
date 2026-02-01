@@ -44,7 +44,6 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
     minlength: 6,
     select: false
   },
@@ -68,6 +67,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Email verification fields
+  isEmailVerified: {
+    type: Boolean,
+    default: false
+  },
+  emailVerifiedAt: {
+    type: Date
+  },
+  // Last login tracking
+  lastLogin: {
+    type: Date
+  },
   // Multi-tenant support: user can belong to multiple companies
   companyMemberships: [companyMembershipSchema],
   // Currently active company (for session context)
@@ -89,7 +100,8 @@ const userSchema = new mongoose.Schema({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  // Skip hashing if password is not modified or not set
+  if (!this.isModified('password') || !this.password) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });

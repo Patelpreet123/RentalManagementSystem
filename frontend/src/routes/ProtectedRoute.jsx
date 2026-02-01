@@ -2,7 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 
 const ProtectedRoute = ({ allowedRoles }) => {
-  const { isAuthenticated, user, isLoading } = useSelector((state) => state.auth);
+  const { isAuthenticated, user, isLoading, pendingVerification } = useSelector((state) => state.auth);
 
   if (isLoading) {
     return (
@@ -10,6 +10,11 @@ const ProtectedRoute = ({ allowedRoles }) => {
         <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
+  }
+
+  // If user has pending verification, redirect to verify-email
+  if (pendingVerification) {
+    return <Navigate to="/verify-email" replace />;
   }
 
   if (!isAuthenticated) {

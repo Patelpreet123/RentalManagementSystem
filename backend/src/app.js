@@ -4,6 +4,8 @@ const errorHandler = require('./middlewares/error.middleware');
 
 // Route imports
 const authRoutes = require('./routes/auth.routes');
+const otpRoutes = require('./routes/otp.routes');
+const emailVerificationRoutes = require('./routes/emailVerification.routes');
 const productRoutes = require('./routes/product.routes');
 const orderRoutes = require('./routes/order.routes');
 const invoiceRoutes = require('./routes/invoice.routes');
@@ -28,6 +30,8 @@ app.get('/health', (req, res) => {
 
 // Mount routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', otpRoutes);
+app.use('/api/email-verification', emailVerificationRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/invoices', invoiceRoutes);

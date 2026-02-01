@@ -8,11 +8,13 @@ import { getMe } from './slices/authSlice';
 import { ProtectedRoute, AdminRoutes, VendorRoutes, CustomerRoutes } from './routes';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import VerifyEmail from './pages/auth/VerifyEmail';
+import OTPLogin from './pages/auth/OTPLogin';
 import LandingPage from './pages/LandingPage';
 
 function App() {
   const dispatch = useDispatch();
-  const { isAuthenticated, user, isLoading } = useSelector((state) => state.auth);
+  const { isAuthenticated, user, isLoading, pendingVerification } = useSelector((state) => state.auth);
 
   useEffect(() => {
     // Check if user is logged in on app load
@@ -74,11 +76,29 @@ function App() {
                   }
                   replace
                 />
+              ) : pendingVerification ? (
+                // User has pending verification - redirect to verify-email
+                <Navigate to="/verify-email" replace />
               ) : (
                 <Register />
               )
             }
           />
+          
+          {/* Email Verification Route - accessible only with pending verification */}
+          <Route 
+            path="/verify-email" 
+            element={
+              isAuthenticated ? (
+                <Navigate to="/" replace />
+              ) : (
+                <VerifyEmail />
+              )
+            } 
+          />
+          
+          {/* OTP Login Route */}
+          <Route path="/otp-login" element={<OTPLogin />} />
 
           {/* Admin Routes */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
