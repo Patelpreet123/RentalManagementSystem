@@ -224,14 +224,22 @@ const CustomerDashboard = () => {
     return () => clearTimeout(timer);
   }, [dispatch]);
 
+  // Helper to get order total (supports both dummy data and API data)
+  const getOrderTotal = (order) => {
+    return Number(order?.totalAmount) || Number(order?.pricing?.total) || 0;
+  };
+
   // Calculate KPIs
   const kpis = useMemo(() => {
-    const activeRentals = orders.filter(o => ['active', 'picked-up'].includes(o.status)).length;
-    const pendingOrders = orders.filter(o => ['pending', 'confirmed', 'ready-for-pickup'].includes(o.status)).length;
-    const completedRentals = orders.filter(o => o.status === 'completed').length;
-    const unpaidInvoices = invoices.filter(i => i.status === 'unpaid');
-    const totalUnpaid = unpaidInvoices.reduce((sum, i) => sum + i.amount, 0);
-    const totalSpent = orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.totalAmount, 0);
+    const safeOrders = Array.isArray(orders) ? orders : [];
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+    
+    const activeRentals = safeOrders.filter(o => ['active', 'picked-up'].includes(o.status)).length;
+    const pendingOrders = safeOrders.filter(o => ['pending', 'confirmed', 'ready-for-pickup'].includes(o.status)).length;
+    const completedRentals = safeOrders.filter(o => o.status === 'completed').length;
+    const unpaidInvoices = safeInvoices.filter(i => i.status === 'unpaid');
+    const totalUnpaid = unpaidInvoices.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const totalSpent = safeOrders.filter(o => o.status === 'completed').reduce((sum, o) => sum + getOrderTotal(o), 0);
 
     return {
       activeRentals,
@@ -262,12 +270,16 @@ const CustomerDashboard = () => {
   };
 
   const formatCurrency = (amount) => {
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || amount === null || amount === undefined) {
+      return '₹0';
+    }
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(numAmount);
   };
 
   const getProductSummary = (items) => {
@@ -483,7 +495,7 @@ const CustomerDashboard = () => {
                             <StatusBadge status={order.status} />
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <span className="text-sm font-medium text-gray-900">{formatCurrency(order.totalAmount)}</span>
+                            <span className="text-sm font-medium text-gray-900">{formatCurrency(getOrderTotal(order))}</span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <button

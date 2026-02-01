@@ -105,14 +105,14 @@ const StatusBadge = ({ status }) => {
 // ============================================
 const KPICard = ({ title, value, subtitle, icon: Icon, iconBg = 'bg-gray-100', iconColor = 'text-gray-600', trend, trendUp, href }) => {
   const content = (
-    <div className="bg-white border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-2xl font-semibold text-gray-900 tracking-tight">{value}</p>
-          {subtitle && (
-            <p className="text-xs text-gray-500">{subtitle}</p>
-          )}
+    <div className="bg-white border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors h-full">
+      <div className="flex items-start justify-between h-full">
+        <div className="flex flex-col justify-between h-full min-h-[80px]">
+          <div>
+            <p className="text-sm font-medium text-gray-500">{title}</p>
+            <p className="text-2xl font-semibold text-gray-900 tracking-tight mt-1">{value}</p>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">{subtitle || '\u00A0'}</p>
           {trend && (
             <div className="flex items-center gap-1 pt-1">
               <FiTrendingUp className={`w-3 h-3 ${trendUp ? 'text-emerald-500' : 'text-red-500'}`} />
@@ -123,7 +123,7 @@ const KPICard = ({ title, value, subtitle, icon: Icon, iconBg = 'bg-gray-100', i
             </div>
           )}
         </div>
-        <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center`}>
+        <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
           <Icon className={`w-5 h-5 ${iconColor}`} />
         </div>
       </div>
@@ -131,7 +131,7 @@ const KPICard = ({ title, value, subtitle, icon: Icon, iconBg = 'bg-gray-100', i
   );
 
   if (href) {
-    return <Link to={href}>{content}</Link>;
+    return <Link to={href} className="block h-full">{content}</Link>;
   }
   return content;
 };
@@ -315,6 +315,7 @@ const VendorDashboard = () => {
           <KPICard
             title="Total Revenue"
             value={formatCurrency(stats?.totalRevenue)}
+            subtitle="This month"
             icon={FiDollarSign}
             iconBg="bg-emerald-50"
             iconColor="text-emerald-600"
@@ -322,6 +323,7 @@ const VendorDashboard = () => {
           <KPICard
             title="Total Orders"
             value={stats?.totalOrders || 0}
+            subtitle="All time orders"
             icon={FiShoppingCart}
             iconBg="bg-blue-50"
             iconColor="text-blue-600"
@@ -474,6 +476,106 @@ const VendorDashboard = () => {
                 Manage products
                 <FiChevronRight className="w-4 h-4" />
               </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Second Row - Additional Stats */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          {/* Quick Actions - Takes 2 columns */}
+          <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-6">
+            <div className="mb-6">
+              <h2 className="text-base font-semibold text-gray-900">Quick Actions</h2>
+              <p className="text-sm text-gray-500 mt-1">Manage your rental business</p>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Link
+                to="/vendor/products/add"
+                className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+              >
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center mb-3">
+                  <FiPlus className="w-5 h-5 text-emerald-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-900">Add Product</span>
+              </Link>
+
+              <Link
+                to="/vendor/orders"
+                className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-3">
+                  <FiShoppingCart className="w-5 h-5 text-blue-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-900">View Orders</span>
+              </Link>
+
+              <Link
+                to="/vendor/invoices"
+                className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+              >
+                <div className="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center mb-3">
+                  <FiFileText className="w-5 h-5 text-violet-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-900">Invoices</span>
+              </Link>
+
+              <Link
+                to="/vendor/analytics"
+                className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+              >
+                <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center mb-3">
+                  <FiBarChart2 className="w-5 h-5 text-amber-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-900">Analytics</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Performance Summary */}
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 text-white">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <FiTrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Performance</h3>
+                  <p className="text-sm text-gray-300">This month</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-white/10 rounded-lg">
+                <p className="text-2xl font-bold">{stats?.totalOrders || 0}</p>
+                <p className="text-sm text-gray-300">Orders</p>
+              </div>
+              <div className="p-3 bg-white/10 rounded-lg">
+                <p className="text-2xl font-bold">{stats?.activeRentals || 0}</p>
+                <p className="text-sm text-gray-300">Active</p>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/20">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-300">Completion Rate</span>
+                <span className="font-semibold text-emerald-400">
+                  {stats?.totalOrders > 0 
+                    ? Math.round(((stats?.completedOrders || 0) / stats.totalOrders) * 100) 
+                    : 0}%
+                </span>
+              </div>
+              <div className="mt-2 h-2 bg-white/20 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-emerald-400 rounded-full transition-all" 
+                  style={{ 
+                    width: `${stats?.totalOrders > 0 
+                      ? Math.round(((stats?.completedOrders || 0) / stats.totalOrders) * 100) 
+                      : 0}%` 
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

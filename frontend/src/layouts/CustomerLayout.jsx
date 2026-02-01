@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, Link, useLocation } from 'react-router-do
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../slices/authSlice';
 import { selectCartItemsCount } from '../slices/cartSlice';
+import CommandPalette from '../components/CommandPalette';
 import {
   FiHome,
   FiGrid,
@@ -13,16 +14,14 @@ import {
   FiMenu,
   FiX,
   FiLogOut,
-  FiSettings,
-  FiChevronDown,
   FiHeart,
-  FiHelpCircle,
   FiSearch,
+  FiCommand,
 } from 'react-icons/fi';
 
 const CustomerLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,6 +35,18 @@ const CustomerLayout = () => {
     }
   }, [location.pathname]);
 
+  // Keyboard shortcut for command palette (Cmd+K or Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleLogout = async () => {
     await dispatch(logout());
     navigate('/login');
@@ -43,7 +54,7 @@ const CustomerLayout = () => {
 
   const menuItems = [
     { path: '/customer/dashboard', icon: FiHome, label: 'Dashboard', exact: true },
-    { path: '/customer/products', icon: FiGrid, label: 'Browse Products' },
+    { path: '/customer', icon: FiGrid, label: 'Browse Products', exact: true },
     { path: '/customer/cart', icon: FiShoppingCart, label: 'Cart', badge: cartItemsCount },
     { path: '/customer/orders', icon: FiPackage, label: 'My Orders' },
     { path: '/customer/invoices', icon: FiFileText, label: 'Invoices' },
@@ -51,7 +62,6 @@ const CustomerLayout = () => {
 
   const secondaryItems = [
     { path: '/customer/profile', icon: FiUser, label: 'My Profile' },
-    { path: '/customer/settings', icon: FiSettings, label: 'Settings' },
   ];
 
   return (
@@ -178,132 +188,49 @@ const CustomerLayout = () => {
         {/* Header */}
         <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between h-16 px-4 lg:px-6">
-            {/* Left: Menu toggle & Search */}
-            <div className="flex items-center gap-4">
+            {/* Left: Menu toggle */}
+            <div className="flex items-center">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
               >
                 <FiMenu className="w-5 h-5" />
               </button>
-
-              {/* Search Bar */}
-              <div className="hidden md:block relative">
-                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  className="w-64 h-10 pl-10 pr-4 text-sm bg-gray-50 border border-gray-200 rounded-lg 
-                    placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
-                />
-              </div>
             </div>
 
-            {/* Right: Actions */}
-            <div className="flex items-center gap-2">
-              {/* Cart - Mobile Quick Access */}
-              <NavLink
-                to="/customer/cart"
-                className="lg:hidden relative flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            {/* Right: Search & User Avatar */}
+            <div className="flex items-center gap-3">
+              {/* Search Bar - Opens Command Palette */}
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="hidden md:flex items-center gap-3 w-56 h-9 pl-3 pr-3 text-sm bg-gray-50 border border-gray-200 rounded-lg 
+                  text-gray-400 hover:bg-gray-100 hover:border-gray-300 transition-all"
               >
-                <FiShoppingCart className="w-5 h-5" />
-                {cartItemsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-gray-900 rounded-full">
-                    {cartItemsCount > 9 ? '9+' : cartItemsCount}
-                  </span>
-                )}
-              </NavLink>
-
-              {/* Favorites */}
-              <NavLink
-                to="/customer/favorites"
-                className="relative flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
-              >
-                <FiHeart className="w-5 h-5" />
-              </NavLink>
-
-              {/* Help */}
-              <button className="hidden sm:flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
-                <FiHelpCircle className="w-5 h-5" />
+                <FiSearch className="w-4 h-4" />
+                <span className="flex-1 text-left">Search...</span>
+                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs font-medium text-gray-500">⌘K</kbd>
               </button>
 
-              {/* Divider */}
-              <div className="hidden sm:block w-px h-6 bg-gray-200 mx-2" />
-
-              {/* User Quick Menu */}
-              <div className="relative">
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-medium">
+              <Link to="/customer/profile" className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-gray-600 font-semibold text-sm">
                     {user?.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[100px] truncate">
-                    {user?.name?.split(' ')[0] || 'Account'}
                   </span>
-                  <FiChevronDown className={`hidden sm:block w-4 h-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Dropdown */}
-                {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
-                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                      <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'User'}</p>
-                      <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                    </div>
-                    <div className="py-1">
-                      <Link
-                        to="/customer/profile"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        <FiUser className="w-4 h-4 text-gray-400" />
-                        My Profile
-                      </Link>
-                      <Link
-                        to="/customer/orders"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        <FiPackage className="w-4 h-4 text-gray-400" />
-                        My Orders
-                      </Link>
-                      <Link
-                        to="/customer/settings"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        <FiSettings className="w-4 h-4 text-gray-400" />
-                        Settings
-                      </Link>
-                    </div>
-                    <div className="border-t border-gray-200 py-1">
-                      <button
-                        onClick={handleLogout}
-                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
-                      >
-                        <FiLogOut className="w-4 h-4" />
-                        Sign Out
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              </Link>
             </div>
           </div>
 
           {/* Mobile Search */}
           <div className="md:hidden px-4 pb-3">
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                className="w-full h-10 pl-10 pr-4 text-sm bg-gray-50 border border-gray-200 rounded-lg 
-                  placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
-            </div>
+            <button
+              onClick={() => setCommandPaletteOpen(true)}
+              className="flex items-center gap-3 w-full h-10 pl-3 pr-3 text-sm bg-gray-50 border border-gray-200 rounded-lg 
+                text-gray-400 hover:bg-gray-100 transition-all"
+            >
+              <FiSearch className="w-4 h-4" />
+              <span className="flex-1 text-left">Search...</span>
+            </button>
           </div>
         </header>
 
@@ -340,6 +267,13 @@ const CustomerLayout = () => {
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        menuItems={[...menuItems, ...secondaryItems]}
+      />
     </div>
   );
 };

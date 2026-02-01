@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { getVendorOrders, updateOrderStatus } from '../../slices/orderSlice';
 import { toast } from 'react-toastify';
@@ -218,7 +219,6 @@ const VendorOrders = () => {
                   <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">Period</th>
                   <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">Total</th>
                   <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">Status</th>
-                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,19 +238,20 @@ const VendorOrders = () => {
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4 hidden md:table-cell">Period</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">Total</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">Status</th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredOrders.map((order) => (
                     <tr key={order._id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="py-3.5 px-4">
-                        <p className="text-sm font-medium text-gray-900">
-                          #{order.orderNumber || order._id.slice(-8).toUpperCase()}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatDate(order.createdAt)}
-                        </p>
+                        <Link to={`/vendor/orders/${order._id}`} className="block hover:text-blue-600">
+                          <p className="text-sm font-medium text-gray-900 hover:text-blue-600">
+                            #{order.orderNumber || order._id.slice(-8).toUpperCase()}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatDate(order.createdAt)}
+                          </p>
+                        </Link>
                       </td>
                       <td className="py-3.5 px-4">
                         <p className="text-sm font-medium text-gray-900">
@@ -302,52 +303,6 @@ const VendorOrders = () => {
                       </td>
                       <td className="py-3.5 px-4">
                         <StatusBadge status={order.status} />
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="relative">
-                          <button
-                            onClick={() =>
-                              setSelectedOrder(selectedOrder === order._id ? null : order._id)
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            Actions
-                            <FiChevronDown className="w-4 h-4" />
-                          </button>
-                          {selectedOrder === order._id && (
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                              <button
-                                onClick={() =>
-                                  window.open(`/orders/${order._id}`, '_blank')
-                                }
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                              >
-                                <FiEye className="w-4 h-4" />
-                                View Details
-                              </button>
-                              {getNextStatus(order.status) && (
-                                <button
-                                  onClick={() =>
-                                    handleStatusUpdate(order._id, getNextStatus(order.status))
-                                  }
-                                  className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-                                >
-                                  <FiCheck className="w-4 h-4" />
-                                  Mark as {statusConfig[getNextStatus(order.status)]?.label}
-                                </button>
-                              )}
-                              {order.status === 'pending' && (
-                                <button
-                                  onClick={() => handleStatusUpdate(order._id, 'cancelled')}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                  <FiX className="w-4 h-4" />
-                                  Cancel Order
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   ))}

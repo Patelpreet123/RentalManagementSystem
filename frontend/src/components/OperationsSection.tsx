@@ -143,19 +143,24 @@ export function OperationsSection() {
       </div>
 
       {/* Pending Quotations */}
-      <div className="bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow text-white">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-white/20 rounded-lg">
-            <FileText className="w-5 h-5" />
+      <div className="lg:col-span-2 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow text-white">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-lg">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold">Pending Quotations</h3>
+              <p className="text-sm text-indigo-100">Awaiting approval</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold">Pending Quotations</h3>
-            <p className="text-sm text-indigo-100">Awaiting approval</p>
-          </div>
+          <button className="px-4 py-2 bg-white text-indigo-600 rounded-xl font-medium hover:bg-indigo-50 transition-colors">
+            View All
+          </button>
         </div>
 
-        <div className="space-y-6">
-          <div>
+        <div className="grid grid-cols-2 gap-6">
+          <div className="p-4 bg-white/10 rounded-xl">
             <div className="flex items-baseline gap-2 mb-2">
               <span className="text-4xl font-bold">28</span>
               <span className="text-sm text-indigo-100">Draft</span>
@@ -163,19 +168,13 @@ export function OperationsSection() {
             <p className="text-sm text-indigo-100">Need to be sent to customers</p>
           </div>
 
-          <div className="h-px bg-white/20"></div>
-
-          <div>
+          <div className="p-4 bg-white/10 rounded-xl">
             <div className="flex items-baseline gap-2 mb-2">
               <span className="text-4xl font-bold">15</span>
               <span className="text-sm text-indigo-100">Sent</span>
             </div>
             <p className="text-sm text-indigo-100">Waiting for customer response</p>
           </div>
-
-          <button className="w-full mt-4 px-4 py-3 bg-white text-indigo-600 rounded-xl font-medium hover:bg-indigo-50 transition-colors">
-            View All Quotations
-          </button>
         </div>
       </div>
     </div>

@@ -303,9 +303,9 @@ const MyOrders = () => {
     dispatch(getMyOrders());
   }, [dispatch]);
 
-  // Use API data only - no fallback to dummy data
+  // Use API data if available, otherwise use dummy data for demo
   const apiOrders = storeOrders?.data || storeOrders || [];
-  const orders = Array.isArray(apiOrders) ? apiOrders : [];
+  const orders = Array.isArray(apiOrders) && apiOrders.length > 0 ? apiOrders : dummyOrders;
 
   // Filter orders based on tab and search
   const filteredOrders = orders.filter((order) => {
@@ -433,7 +433,6 @@ const MyOrders = () => {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Rental Period</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Total</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -450,18 +449,17 @@ const MyOrders = () => {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Rental Period</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredOrders.map((order) => (
-                  <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={order._id || order.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     {/* Order Number */}
                     <td className="px-4 py-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{order.orderNumber}</p>
+                      <Link to={`/customer/orders/${order._id || order.id}`} className="block">
+                        <p className="text-sm font-medium text-gray-900 hover:text-blue-600">{order.orderNumber}</p>
                         <p className="text-xs text-gray-500 mt-0.5">{formatDate(order.createdAt)}</p>
-                      </div>
+                      </Link>
                     </td>
 
                     {/* Items */}
@@ -520,17 +518,6 @@ const MyOrders = () => {
                       <p className="text-sm font-semibold text-gray-900">
                         {formatCurrency(order.pricing?.total || 0)}
                       </p>
-                    </td>
-
-                    {/* Action */}
-                    <td className="px-4 py-4">
-                      <Link
-                        to={`/customer/orders/${order._id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-                      >
-                        <FiEye className="w-3.5 h-3.5" />
-                        View
-                      </Link>
                     </td>
                   </tr>
                 ))}

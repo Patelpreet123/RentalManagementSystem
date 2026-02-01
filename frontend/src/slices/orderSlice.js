@@ -227,6 +227,8 @@ const orderSlice = createSlice({
       // Get Single Order
       .addCase(getOrder.pending, (state) => {
         state.isLoading = true;
+        state.isError = false;
+        state.message = '';
       })
       .addCase(getOrder.fulfilled, (state, action) => {
         state.isLoading = false;

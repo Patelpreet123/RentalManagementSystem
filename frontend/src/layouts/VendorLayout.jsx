@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../slices/authSlice';
+import CommandPalette from '../components/CommandPalette';
 import {
   FiHome,
   FiPackage,
@@ -11,14 +12,29 @@ import {
   FiX,
   FiLogOut,
   FiBarChart2,
+  FiUser,
+  FiSearch,
 } from 'react-icons/fi';
 
 const VendorLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
+
+  // Keyboard shortcut for command palette (Cmd+K or Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -31,6 +47,7 @@ const VendorLayout = () => {
     { path: '/vendor/orders', icon: FiShoppingCart, label: 'Orders' },
     { path: '/vendor/invoices', icon: FiFileText, label: 'Invoices' },
     { path: '/vendor/analytics', icon: FiBarChart2, label: 'Analytics' },
+    { path: '/vendor/profile', icon: FiUser, label: 'My Profile' },
   ];
 
   return (
@@ -121,17 +138,36 @@ const VendorLayout = () => {
         {/* Header */}
         <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between h-16 px-4 lg:px-6">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
-            >
-              <FiMenu className="w-5 h-5" />
-            </button>
+            {/* Left: Menu toggle */}
+            <div className="flex items-center">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
+                <FiMenu className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500">
-                Welcome, <span className="font-medium text-gray-900">{user?.name}</span>
-              </span>
+            {/* Right: Search & User Avatar */}
+            <div className="flex items-center gap-3">
+              {/* Search Bar - Opens Command Palette */}
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="hidden md:flex items-center gap-3 w-56 h-9 pl-3 pr-3 text-sm bg-gray-50 border border-gray-200 rounded-lg 
+                  text-gray-400 hover:bg-gray-100 hover:border-gray-300 transition-all"
+              >
+                <FiSearch className="w-4 h-4" />
+                <span className="flex-1 text-left">Search...</span>
+                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs font-medium text-gray-500">⌘K</kbd>
+              </button>
+
+              <Link to="/vendor/profile" className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
+                <span className="text-gray-600 font-semibold text-sm">
+                  {user?.name?.charAt(0).toUpperCase() || 'V'}
+                </span>
+              </div>
+            </Link>
             </div>
           </div>
         </header>
@@ -149,6 +185,13 @@ const VendorLayout = () => {
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        menuItems={menuItems}
+      />
     </div>
   );
 };
