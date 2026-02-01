@@ -15,29 +15,53 @@ const Register = () => {
     role: 'customer',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user, isLoading, isError, isSuccess, message } = useSelector(
-    (state) => state.auth
-  );
+  
+  // Use registrationComplete flag and pendingVerification for navigation
+  const { 
+    isLoading, 
+    isError, 
+    isSuccess, 
+    isAuthenticated,
+    message, 
+    pendingVerification,
+    registrationComplete 
+  } = useSelector((state) => state.auth);
 
+  // Handle errors
   useEffect(() => {
     if (isError) {
       toast.error(message);
+      dispatch(reset());
     }
+  }, [isError, message, dispatch]);
 
-    if (isSuccess && user) {
-      toast.success('Registration successful!');
-      if (user.role === 'vendor') {
-        navigate('/vendor');
-      } else {
-        navigate('/');
+  // Handle successful registration - use registrationComplete flag
+  useEffect(() => {
+    if (registrationComplete) {
+      if (pendingVerification) {
+        // User needs to verify email
+        toast.success('Registration successful! Please verify your email.');
+        dispatch(reset()); // Reset flags but keep pendingVerification
+        navigate('/verify-email', { 
+          state: { 
+            email: pendingVerification.email,
+            emailSent: pendingVerification.emailSent
+          },
+          replace: true
+        });
+      } else if (isAuthenticated) {
+        // Email verification was skipped - user is authenticated
+        toast.success('Registration successful!');
+        dispatch(reset());
+        // Navigate based on role from the successful registration
+        navigate('/', { replace: true });
       }
     }
-
-    dispatch(reset());
-  }, [user, isError, isSuccess, message, navigate, dispatch]);
+  }, [registrationComplete, pendingVerification, isAuthenticated, navigate, dispatch]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -45,6 +69,11 @@ const Register = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!agreedToTerms) {
+      toast.error('Please agree to the Terms of Service and Privacy Policy');
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
@@ -228,6 +257,22 @@ const Register = () => {
                 />
               </div>
 
+            <div className="flex items-start">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="terms" className="ml-2 text-sm text-gray-600">
+                I agree to the{' '}
+                <Link to="/terms" className="text-blue-600 hover:text-blue-700">
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link to="/privacy" className="text-blue-600 hover:text-blue-700">
+                  Privacy Policy
               {/* Terms checkbox */}
               <div className="flex items-start gap-2 pt-1">
                 <input

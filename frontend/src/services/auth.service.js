@@ -5,20 +5,26 @@ const API_URL = '/api/auth';
 // Register user
 const register = async (userData) => {
   const response = await axios.post(`${API_URL}/register`, userData);
-  if (response.data.data.token) {
+  
+  // DON'T save token if email verification is required
+  if (response.data.data.token && !response.data.data.requiresEmailVerification) {
     localStorage.setItem('user', JSON.stringify(response.data.data));
     localStorage.setItem('token', response.data.data.token);
   }
+  
   return response.data.data;
 };
 
 // Login user
 const login = async (userData) => {
   const response = await axios.post(`${API_URL}/login`, userData);
+  
+  // Only save token if user is verified
   if (response.data.data.token) {
     localStorage.setItem('user', JSON.stringify(response.data.data));
     localStorage.setItem('token', response.data.data.token);
   }
+  
   return response.data.data;
 };
 
